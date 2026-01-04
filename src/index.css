@@ -1,0 +1,219 @@
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+
+
+
+/* CUSTOM STYLES */
+
+.MuiFilledInput-root {
+  border-radius: 0 !important;
+  background-color: #ffffff00 !important;
+}
+
+.MuiInputBase-root {
+  background-color: #ffffff00 !important;
+}
+
+.MuiButtonBase-root {
+  text-transform: uppercase !important;
+}
+
+.MuiFormControl-root {
+  margin-bottom: 0 !important;
+}
+
+.menuPrincipal .MuiPaper-root {
+  background-color: #CDD2E6;
+}
+
+.menuPrincipalHeader {
+  background-color: #fff;
+}
+
+.content-icon .MuiButton-icon {
+  margin: 0;
+}
+
+.content-icon .MuiButton-icon svg {
+  font-size: 2.5rem;
+}
+
+.content-icon p {
+  line-height: 1.2;
+}
+
+.MuiPaper-root {
+  box-shadow: none !important;
+}
+
+table .acciones-column {
+  width: 12em;
+  text-align: center;
+}
+
+table thead .MuiTableCell-root {
+  font-weight: bold;
+}
+
+.webkit-scrollbar {
+  width: 8px,
+}
+
+.webkit-scrollbar-track {
+  background-color: hotpink,
+}
+
+.webkit-scrollbar-thumb {
+  background-color: green,
+}
+
+.webkit-scrollbar-thumb:hover {
+  background-color: yellow,
+}
+
+.filters-container .filter-item .MuiFormControl-root {
+  width: 100%;
+  max-width: 100% !important;
+}
+
+.clientesForm-page>.MuiBox-root,
+.componentesForm-page>.MuiBox-root {
+  background-color: #fff !important;
+  width: 98vw !important;
+  max-height: 95vh !important;
+}
+
+
+.MuiInputLabel-animated{
+  transform: translate(12px, 7px) scale(0.75) !important;
+}
+
+
+/* MODO TRABAJO  */
+#root, .content-container {
+  background-color: #080b19 !important
+}
+
+.MuiTablePagination-root {
+  color: #cdd2e6 !important;
+}
+
+.MuiPaper-rounded,
+.MuiTable-root {
+  background-color: #1b1b1b !important;
+}
+
+.MuiPaper-rounded h6,
+.MuiInputBase-input,
+.MuiListItemText-primary,
+.MuiMenuItem-root,
+.MuiFormControlLabel-label {
+  color: #757575 !important;
+  -webkit-text-fill-color: unset !important;
+}
+
+
+.MuiFormControl-root .MuiFormLabel-root,
+.MuiTableHead-root .MuiTableCell-root,
+.menuPrincipal .MuiListItemButton-root .MuiListItemIcon-root,
+.content-icon p {
+  color: #3A4D9C !important;
+}
+
+.MuiFormControl-root .MuiFilledInput-root {
+  border-bottom: 1px solid #3A4D9C !important;
+}
+
+.MuiTableCell-root {
+  background-color: #1b1b1b !important;
+  color: #757575 !important;
+  border-bottom: 1px solid #080b19 !important;
+}
+
+.MuiModal-root>.MuiBox-root {
+  background-color: #000000 !important;
+}
+
+.login-form-section {
+  background-color: #080b19 !important;
+}
+
+.menuPrincipal .MuiPaper-root {
+  background-color: black !important;
+}
+
+
+.MuiTablePagination-toolbar .MuiInputBase-root .MuiInputBase-input,
+p,
+.MuiButton-text {
+  color: #cdd2e6 !important;
+}
+
+h1,
+.MuiSelect-icon,
+.MuiTablePaginationActions-root .MuiIconButton-root,
+a.MuiButton-outlined {
+  color: #5C6BC0 !important;
+}
+
+.menuPrincipalHeader {
+  background-color: #3a4d9c;
+}
+
+.menuPrincipalHeader img {
+  filter: brightness(0) invert(1);
+  -webkit-filter: brightness(0) invert(1);
+}
+
+.MuiButton-outlined {
+  color: #cdd2e6 !important;
+  border-color: #cdd2e6 !important;
+}
+
+.MuiButtonBase-root-MuiButton-root.Mui-disabled {
+  color: #757575 !important;
+  border-color: #757575 !important;
+}
+
+.breadcrumb-nav {
+  background-color: black !important;
+  border-bottom: 1px solid #3a4d9c;
+}
+
+.menuPrincipal > .MuiPaper-root {
+  border-right: 1px solid #3a4d9c !important;
+}
+
+.MuiTableCell-root .MuiSvgIcon-root{
+  color: #851e6b !important;
+}
+.MuiTableCell-root .MuiSvgIcon-colorSuccess {
+  color: #1a9256 !important;
+}
+
+.MuiTableCell-root .MuiSvgIcon-colorPrimary {
+  color: #3a4d9c !important;
+}
+
+input:-internal-autofill-selected, input:disabled, .MuiFilledInput-root.Mui-disabled, .MuiFormControl-root {
+  background-color: #a2a2a20f !important;
+}
+
+.MuiFilledInput-root.Mui-disabled, .MuiFormControl-root.Mui-disabled {
+  border-radius: 8px !important;
+  border-bottom: none !important;
+}
+
+/* FIN MODO OSCURO */

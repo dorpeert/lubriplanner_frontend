@@ -1,0 +1,276 @@
+import React from "react";
+import {
+  Modal,
+  Box,
+  Typography,
+  Button,
+  IconButton,
+  CircularProgress,
+  Alert,
+  useTheme,
+  useMediaQuery,
+} from "@mui/material";
+import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
+
+const SIZE_MAP = {
+  M: "45vw",
+  L: "75vw",
+};
+
+const VARIANT_STYLES = {
+  success: {
+    headerBg: "#02542D40",
+    bg: "#02542cbf",
+    accent: "#02542D",
+    titleColor: "#02542D",
+    icon: "✔",
+  },
+  error: {
+    headerBg: "#7F000040",
+    bg: "#7f0000bf",
+    accent: "#822525",
+    titleColor: "#822525",
+    icon: "✖",
+  },
+  warning: {
+    headerBg: "#52250440",
+    bg: "#522504bf",
+    accent: "#7D5C43",
+    titleColor: "#7D5C43",
+    icon: "⚠",
+  },
+  default: {
+    headerBg: "#3A4D9C40",
+    bg: "#3A4D9Cbf",
+    accent: "#3A4D9C",
+    titleColor: "#3A4D9C",
+  },
+};
+
+export default function CustomModal({
+  open,
+  onClose,
+  title,
+  size = "M",
+  variant = "default",
+  content,
+  message,
+  actions,
+  loading = false,
+  successMessage = null,
+  errorMessage = null,
+  code,
+  onMessage,
+  onError,
+}) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const width = isMobile ? "90vw" : SIZE_MAP[size] || SIZE_MAP.M;
+  const styles = VARIANT_STYLES[variant] || VARIANT_STYLES.default;
+  const isSpecialVariant = variant !== "default";
+  const showCode = code && variant !== "default";
+
+  return (
+    <Modal
+      open={open}
+      onClose={(e, reason) => {
+        if (reason !== "backdropClick") {
+          onClose();
+        }
+      }}
+      BackdropProps={{
+        sx: {
+          backgroundColor: styles.headerBg,
+          backdropFilter: "blur(2.5px)",
+        },
+      }}
+    >
+      <Box
+        className="BOX"
+        sx={{
+          "&:focus-visible": { outline: "none" },
+          position: "relative",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          bgcolor: "#fff",
+          boxShadow: 24,
+          borderRadius: 1,
+          width,
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* CABECERA */}
+        <Box
+          sx={{
+            backgroundColor: styles.headerBg,
+            padding: 1,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexShrink: 0,
+            borderRadius: "8px 8px 0 0",
+          }}
+        >
+          {title && (
+            <Typography
+              sx={{
+                width: "100%",
+                textAlign: "center",
+                color: styles.titleColor,
+              }}
+              variant="h5"
+            >
+              {title}
+            </Typography>
+          )}
+          <IconButton onClick={onClose} disabled={loading}>
+            <CloseOutlinedIcon
+              sx={{ fontSize: ".85em", color: styles.accent }}
+            />
+          </IconButton>
+        </Box>
+
+        {/* CONTENIDO */}
+        <Box
+          sx={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "1em 1em 0 1em",
+            minHeight: 0,
+          }}
+        >
+          {variant !== "default" ? (
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                gap: 4,
+              }}
+            >
+              {message && (
+                <Typography
+                  sx={{
+                    textAlign: showCode ? "right" : "center",
+                    width: showCode ? "30%" : "100%",
+                    alignContent: "end",
+                  }}
+                  color="text.secondary"
+                >
+                  {message}
+                </Typography>
+              )}
+
+              {/* CÓDIGO */}
+              {showCode && (
+                <Box textAlign="left" sx={{ width: "30%" }}>
+                  <Typography
+                    sx={{
+                      fontWeight: 400,
+                      fontSize: "0.8rem",
+                    }}
+                    color="text.secondary"
+                  >
+                    Cod.
+                  </Typography>
+
+                  <Typography
+                    variant="h2"
+                    sx={{
+                      fontWeight: 300,
+                      lineHeight: 1,
+                      color: styles.accent,
+                    }}
+                  >
+                    {code}
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      fontWeight: 400,
+                      fontSize: "0.8rem",
+                    }}
+                    color="text.secondary"
+                  >
+                    {variant === "error"
+                      ? "No se ha podido completar la operación."
+                      : variant === "success"
+                      ? "Operación realizada con éxito."
+                      : ""}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <>
+              {/* CONTENIDO NORMAL */}
+              {message && (
+                <Typography textAlign="center" color="text.secondary">
+                  {message}
+                </Typography>
+              )}
+
+              {successMessage && (
+                <Alert severity="success">
+                  {successMessage}
+                </Alert>
+              )}
+
+              {errorMessage && (
+                <Alert severity="error">
+                  {errorMessage}
+                </Alert>
+              )}
+              {content}
+            </>
+          )}
+        </Box>
+
+        {/* ACCIONES */}
+        {actions?.length > 0 && (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "row-reverse",
+              justifyContent: "flex-start",
+              gap: 2,
+              p: 2,
+            }}
+          >
+            {actions.map((action, i) => {
+              const resolvedVariant =
+                action.variant ||
+                (isSpecialVariant
+                  ? i === 0
+                    ? "outlined"
+                    : "text"
+                  : "contained");
+
+              return (
+                <Button
+                  key={i}
+                  type={action.type}
+                  form={action.form}
+                  onClick={action.onClick}
+                  disabled={action.disabled || loading}
+                  variant={resolvedVariant}
+                >
+                  {loading && action.type === "submit" ? (
+                    <>
+                      <CircularProgress size={16} sx={{ mr: 1 }} />
+                      Enviando...
+                    </>
+                  ) : (
+                    action.label
+                  )}
+                </Button>
+              );
+            })}
+          </Box>
+        )}
+      </Box>
+    </Modal>
+  );
+}

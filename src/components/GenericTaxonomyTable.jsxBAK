@@ -1,0 +1,411 @@
+// =======================================================
+// GenericTaxonomyTable.jsx
+// =======================================================
+// Componente genérico para CRUD de entidades y taxonomías
+// Proyecto: LubriPlanner Avanzado
+// =======================================================
+
+// ==============================
+// React
+// ==============================
+import React, { useEffect, useState } from "react";
+
+// ==============================
+// MUI
+// ==============================
+import {
+  Box,
+  Button,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+  IconButton,
+  CircularProgress,
+} from "@mui/material";
+
+import {
+  Add,
+  Visibility,
+  Edit,
+  Delete,
+  FilterList,
+} from "@mui/icons-material";
+
+// ==============================
+// Internal components
+// ==============================
+import CustomModal from "./CustomModal";
+
+// ==============================
+// Services
+// ==============================
+import api from "../api/apiClient";
+
+// =======================================================
+// COMPONENT
+// =======================================================
+
+const GenericTaxonomyTable = ({
+  title,
+  endpoint,
+  columns,
+  dataMapper,
+
+  // CRUD behavior
+  customFormContent: FormContent,
+  modalSize = "M",
+
+  enableCreate = true,
+  enableView = true,
+  enableEdit = true,
+  enableDelete = true,
+
+  // Special cases (e.g. Componentes)
+  onView,
+
+  // Filters
+  initialFilters = {},
+}) => {
+  // =====================================================
+  // STATE
+  // =====================================================
+
+  // ------------------------------
+  // Data state
+  // ------------------------------
+
+  /**
+   * rows
+   * ----------------------------
+   * Fuente única de verdad de la tabla.
+   * Siempre se reemplaza completamente tras un fetch.
+   */
+  const [rows, setRows] = useState([]);
+
+  /**
+   * loading
+   * ----------------------------
+   * Controla el estado de carga del listado.
+   */
+  const [loading, setLoading] = useState(false);
+
+  /**
+   * error
+   * ----------------------------
+   * Almacena errores del backend (uso actual: debug).
+   */
+  const [error, setError] = useState(null);
+
+  // ------------------------------
+  // Filters
+  // ------------------------------
+
+  /**
+   * filters
+   * ----------------------------
+   * Representa los filtros activos.
+   * Cualquier cambio aquí dispara refetch.
+   */
+  const [filters, setFilters] = useState(initialFilters);
+
+  /**
+   * showFilters
+   * ----------------------------
+   * Control visual del panel de filtros.
+   */
+  const [showFilters, setShowFilters] = useState(false);
+
+  // ------------------------------
+  // Selection
+  // ------------------------------
+
+  /**
+   * selectedRow
+   * ----------------------------
+   * Snapshot del registro sobre el que se ejecuta una acción.
+   */
+  const [selectedRow, setSelectedRow] = useState(null);
+
+  // ------------------------------
+  // Modal
+  // ------------------------------
+
+  /**
+   * modalOpen
+   * ----------------------------
+   * Controla visibilidad del modal genérico.
+   */
+  const [modalOpen, setModalOpen] = useState(false);
+
+  /**
+   * modalMode
+   * ----------------------------
+   * Define el propósito del modal:
+   * "create" | "view" | "edit" | "delete"
+   */
+  const [modalMode, setModalMode] = useState(null);
+
+  // ------------------------------
+  // Refresh trigger
+  // ------------------------------
+
+  /**
+   * refreshing
+   * ----------------------------
+   * Trigger explícito para recargar la tabla tras CRUD.
+   */
+  const [refreshing, setRefreshing] = useState(false);
+
+  // =====================================================
+  // EFFECTS
+  // =====================================================
+
+  /**
+   * Sync initialFilters → filters
+   * --------------------------------
+   * Permite controlar el componente desde fuera
+   * sin generar loops.
+   */
+  useEffect(() => {
+    setFilters(initialFilters || {});
+  }, [initialFilters]);
+
+  /**
+   * Fetch data
+   * --------------------------------
+   * Se ejecuta cuando:
+   * - cambia endpoint
+   * - cambian filtros
+   * - se dispara refresh manual
+   */
+  useEffect(() => {
+    let active = true;
+
+    async function fetchData() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await api.get(endpoint, {
+          params: filters,
+        });
+
+        if (active) {
+          setRows(response.data.map(dataMapper));
+        }
+      } catch (err) {
+        if (active) {
+          setError(err);
+          console.error("GenericTaxonomyTable fetch error:", err);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    }
+
+    fetchData();
+
+    return () => {
+      active = false;
+    };
+  }, [endpoint, filters, refreshing, dataMapper]);
+
+  /**
+   * Cleanup modal-related state
+   * --------------------------------
+   * Evita residuos de estado entre aperturas.
+   */
+  useEffect(() => {
+    if (!modalOpen) {
+      setSelectedRow(null);
+      setModalMode(null);
+    }
+  }, [modalOpen]);
+
+  // =====================================================
+  // HELPERS
+  // =====================================================
+
+  /**
+   * Abre el modal configurando modo y fila.
+   */
+  const openModal = (mode, row = null) => {
+    setModalMode(mode);
+    setSelectedRow(row);
+    setModalOpen(true);
+  };
+
+  /**
+   * Fuerza recarga de la tabla.
+   */
+  const triggerRefresh = () => {
+    setRefreshing(true);
+  };
+
+  // =====================================================
+  // ACTION HANDLERS
+  // =====================================================
+
+  const handleCreate = () => openModal("create");
+
+  const handleView = (row) => {
+    if (onView) {
+      onView(row);
+      return;
+    }
+    openModal("view", row);
+  };
+
+  const handleEdit = (row) => openModal("edit", row);
+
+  const handleDelete = (row) => openModal("delete", row);
+
+  // =====================================================
+  // ROW ACTIONS RESOLVER
+  // =====================================================
+
+  /**
+   * Define las acciones visibles por fila.
+   * Centraliza reglas y evita lógica en JSX.
+   */
+  const getRowActions = (row) => {
+    const actions = [];
+
+    if (enableView) {
+      actions.push({
+        key: "view",
+        icon: <Visibility fontSize="small" />,
+        label: "Ver",
+        onClick: () => handleView(row),
+      });
+    }
+
+    if (enableEdit) {
+      actions.push({
+        key: "edit",
+        icon: <Edit fontSize="small" />,
+        label: "Editar",
+        onClick: () => handleEdit(row),
+      });
+    }
+
+    if (enableDelete) {
+      actions.push({
+        key: "delete",
+        icon: <Delete fontSize="small" />,
+        label: "Eliminar",
+        onClick: () => handleDelete(row),
+      });
+    }
+
+    return actions;
+  };
+
+  // =====================================================
+  // RENDER
+  // =====================================================
+
+  return (
+    <Box>
+      {/* ===========================
+          Header
+      ============================ */}
+      <Box display="flex" justifyContent="space-between" mb={2}>
+        <Typography variant="h6">{title}</Typography>
+
+        <Box>
+          <IconButton onClick={() => setShowFilters((v) => !v)}>
+            <FilterList />
+          </IconButton>
+
+          {enableCreate && (
+            <Button
+              startIcon={<Add />}
+              variant="contained"
+              onClick={handleCreate}
+            >
+              Nuevo
+            </Button>
+          )}
+        </Box>
+      </Box>
+
+      {/* ===========================
+          Table
+      ============================ */}
+      <Paper>
+        {loading ? (
+          <Box p={4} textAlign="center">
+            <CircularProgress />
+          </Box>
+        ) : (
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {columns.map((col) => (
+                    <TableCell key={col.field}>{col.headerName}</TableCell>
+                  ))}
+                  <TableCell align="center">Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {columns.map((col) => (
+                      <TableCell key={col.field}>
+                        {row[col.field]}
+                      </TableCell>
+                    ))}
+
+                    <TableCell align="center">
+                      {getRowActions(row).map((action) => (
+                        <IconButton
+                          key={action.key}
+                          size="small"
+                          aria-label={action.label}
+                          onClick={action.onClick}
+                        >
+                          {action.icon}
+                        </IconButton>
+                      ))}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+
+      {/* ===========================
+          Modal
+      ============================ */}
+      <CustomModal
+        open={modalOpen}
+        size={modalSize}
+        onClose={() => setModalOpen(false)}
+      >
+        {FormContent && (
+          <FormContent
+            mode={modalMode}
+            initialData={selectedRow}
+            onSuccess={triggerRefresh}
+            onCancel={() => setModalOpen(false)}
+          />
+        )}
+      </CustomModal>
+    </Box>
+  );
+};
+
+export default GenericTaxonomyTable;
