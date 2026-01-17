@@ -17,6 +17,7 @@ import Empaques from "../pages/modules/configuracion/listas/Empaques";
 import FabricantesDeLubricantes from "../pages/modules/configuracion/listas/FabricantesDeLubricantes";
 import Lobs from "../pages/modules/configuracion/listas/Lobs";
 import PrestadoresDeServicios from "../pages/modules/configuracion/listas/PrestadoresDeServicios"
+import TiposDeServicios from "../pages/modules/configuracion/listas/TiposDeServicios"
 import TiposDeLubricantes from "../pages/modules/configuracion/listas/TiposDeLubricantes"; 
 
 import Componentes from "../pages/modules/componentes/Componentes"
@@ -52,6 +53,7 @@ const privateRoutes = [
       { path: "/configuracion/listas/lobs", element: <Lobs /> },
       { path: "/configuracion/listas/tipos_lubricantes", element: <TiposDeLubricantes /> },
       { path: "/configuracion/listas/prestadores_servicios", element: <PrestadoresDeServicios /> },
+      { path: "/configuracion/listas/tipos_de_servicios", element: <TiposDeServicios /> },
 
       { path: "/componentes", element: <Componentes /> },
       //{ path: "/componentes/filtered", element: <Componentes /> },

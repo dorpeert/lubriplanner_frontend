@@ -6,14 +6,15 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import { claseValidationSchema } from "../../validations/listas/claseSchema";
 
 const ClaseFormContent = ({
-  formId,
+  formId = "clase-form",
   formData: initialData = {},
   isViewMode = false,
   loading = false,
   onValidationChange,
   onSubmit,
+  backendErrors = null,
 }) => {
-  // ✅ schema con referencia estable
+  // ===== Validation =====
   const validationSchema = useMemo(() => claseValidationSchema(), []);
 
   // ✅ resolver memorizado
@@ -22,31 +23,47 @@ const ClaseFormContent = ({
     [validationSchema]
   );
 
+  // ===== Form =====
   const {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors, isValid, isDirty },
   } = useForm({
-    resolver,
-    mode: "onChange",
-    defaultValues: { name: initialData.name || "" },
+    resolver: isViewMode ? undefined : resolver,
+    mode: isViewMode ? "onSubmit" : "onChange",
+    defaultValues: {
+      name: initialData?.name || "",
+    },
   });
 
-  // 🔄 reset al cambiar item
-  useEffect(() => {
-    reset({ name: initialData.name || "" });
-  }, [initialData, reset]);
-
-  // 🔄 informar estado al padre
-  useEffect(() => {
-    onValidationChange?.(isValid, isDirty);
-  }, [isValid, isDirty, onValidationChange]);
-
-  const submitForm = (data) => {
-    console.log("SUBMIT CLASE FORM:", data);
-    onSubmit(data);
-  };
+    // ===== Sync initial data (edit / view) =====
+    useEffect(() => {
+      reset({ name: initialData?.name || "" });
+    }, [initialData?.name, reset]);
+  
+    // Informar estado al padre
+    useEffect(() => {
+      onValidationChange?.(isValid, isDirty);
+    }, [isValid, isDirty, onValidationChange]);
+  
+    useEffect(() => {
+      if (!backendErrors) return;
+  
+      Object.entries(backendErrors).forEach(([field, messages]) => {
+        setError(field, {
+          type: "server",
+          message: messages[0],
+        });
+      });
+    }, [backendErrors, setError]);
+  
+    // ===== Submit =====
+    const submitForm = (data) => {
+      console.log("SUBMIT CLASE FORM:", data);
+      onSubmit?.(data);
+    };
 
   return (
     <form id={formId} onSubmit={handleSubmit(submitForm)}>

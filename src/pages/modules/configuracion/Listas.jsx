@@ -146,8 +146,7 @@ export default function Configuracion() {
             </Typography>
           </Button>
 
-          {/*
-            <Button
+          <Button
             className="content-icon"
             component={Link}
             to="prestadores_servicios"
@@ -166,8 +165,26 @@ export default function Configuracion() {
               Prestadores Servicios
             </Typography>
           </Button>
-          */}
 
+          <Button
+            className="content-icon"
+            component={Link}
+            to="tipos_de_servicios"
+            sx={{
+              flexDirection: "column",
+              textAlign: "center",
+              width: 100,
+              border: "none",
+              justifyContent: "flex-start",
+              gap: "10px",
+            }}
+            variant="outlined"
+            startIcon={<SupportAgentIcon />}
+          >
+            <Typography variant="body1" color="primary" textTransform="none">
+              Tipos de Servicios
+            </Typography>
+          </Button>
         </Box>
       </Paper>
     </Box>

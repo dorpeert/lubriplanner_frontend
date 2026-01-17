@@ -22,8 +22,8 @@ import {
 } from "@mui/material";
 
 import TablePagination from "@mui/material/TablePagination";
-import GenericSelect from "./GenericSelect";
-import GenericMultiSelect from "./GenericMultiSelect";
+import GenericSelect from "../componentsNew/GenericSelect";
+import GenericMultiSelect from "../componentsNew/GenericMultiSelect";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import {

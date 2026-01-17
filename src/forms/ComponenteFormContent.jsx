@@ -1,5 +1,5 @@
 // src/forms/ComponenteFormContent.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Grid,
   TextField,
@@ -12,15 +12,18 @@ import {
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
-import GenericSelect from "../components/GenericSelect";
-import InlineEdit from "../components/InlineEdit";
-import ServiciosTable from "../components/ServiciosTable";
-import GenericAutocomplete from "../components/GenericAutocomplete";
+import GenericSelect from "../componentsNew/GenericSelect";
+import InlineEdit from "../componentsNew/InlineEdit";
+import ServiciosTable from "../componentsNew/ServiciosTable";
+import GenericAutocomplete from "../componentsNew/GenericAutocomplete";
 
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { componenteValidationSchema } from "../validations/componenteValidationSchema";
+
+const CLIENTES_URL =
+  "https://lightcoral-emu-437776.hostingersite.com/web/api/clientes";
 
 const ComponenteFormContent = ({
   formId,
@@ -56,10 +59,45 @@ const ComponenteFormContent = ({
   });
 
   /* =========================
-     ACTUALIZAR DATA + NOTIFICACIÓN
+     ESTADO DE LISTAS
+  ========================== */
+  const [clientes, setClientes] = useState([]);
+  const [activos, setActivos] = useState([]);
+  const [equipos, setEquipos] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  /* =========================
+     WATCH (reactivo)
+  ========================== */
+  const watchedClienteId = watch("cliente_id");
+  const watchedActivoId = watch("activo_id");
+  const watchedEquipoId = watch("equipo_id");
+  const watchedLubricanteId = watch("lubricante_id");
+
+  /* =========================
+     REFS
+  ========================== */
+  const prevClienteIdRef = useRef(null);
+  const prevActivoIdRef = useRef(null);
+
+  // Evita que los efectos de cascada “limpien” campos durante el primer ciclo de hidratación
+  const isHydratingRef = useRef(true);
+
+  /* =========================
+     RESET cuando cambia initialData
   ========================== */
   useEffect(() => {
+    isHydratingRef.current = true;
     reset(initialData);
+
+    // prevs al valor actual para que NO se limpien campos al ver/editar
+    prevClienteIdRef.current = initialData?.cliente_id ?? null;
+    prevActivoIdRef.current = initialData?.activo_id ?? null;
+
+    // libera el modo hidratación en el siguiente tick
+    Promise.resolve().then(() => {
+      isHydratingRef.current = false;
+    });
   }, [initialData, reset]);
 
   useEffect(() => {
@@ -67,153 +105,259 @@ const ComponenteFormContent = ({
   }, [isValid, isDirty, onValidationChange]);
 
   /* =========================
-     CARGA DE DATOS (CLIENTES Y LUBRICANTES)
+     CARGA DE CLIENTES (una sola vez)
   ========================== */
-  const [clientes, setClientes] = useState([]);
-  const [activos, setActivos] = useState([]);
-  const [equipos, setEquipos] = useState([]);
-  const [lubricantes, setLubricantes] = useState([]);
-  const [dataLoading, setDataLoading] = useState(true);
-
   useEffect(() => {
-    Promise.all([
-      fetch(
-        "https://lightcoral-emu-437776.hostingersite.com/web/api/clientes",
-        { credentials: "include" }
-      ).then((r) => r.json()),
+    let cancelled = false;
 
-      fetch(
-        "https://lightcoral-emu-437776.hostingersite.com/web/api/lubricantes",
-        { credentials: "include" }
-      ).then((r) => r.json()),
-    ])
-      .then(([clientesData, lubricantesData]) => {
-        setClientes(clientesData || []);
-        setLubricantes(lubricantesData || []);
+    const load = async () => {
+      try {
+        setDataLoading(true);
+
+        const res = await fetch(CLIENTES_URL, { credentials: "include" });
+        const json = await res.json();
+
+        const clientesArray = Array.isArray(json?.data)
+          ? json.data
+          : Array.isArray(json)
+          ? json
+          : [];
+
+        if (cancelled) return;
+
+        setClientes(clientesArray);
         setDataLoading(false);
 
-        const clienteId = initialData.cliente_id;
-        if (clienteId && clientesData?.length) {
-          const cliente = clientesData.find((c) => c.id == clienteId);
-          if (cliente?.activos) {
-            const acts = cliente.activos.map((a) => ({
+        // Prefill de activos/equipos si venimos con initialData
+        const clienteIdInit = initialData?.cliente_id;
+        const activoIdInit = initialData?.activo_id;
+
+        if (clienteIdInit) {
+          const cliente = clientesArray.find(
+            (c) => String(c.id) === String(clienteIdInit)
+          );
+
+          const acts =
+            cliente?.activos?.map((a) => ({
+              ...a,
               id: a.id,
               nombre: a.activo,
-              ...a,
-            }));
-            setActivos(acts);
+              // ✅ en tu data real equipos vienen en "eq"
+              equipos: Array.isArray(a.eq)
+                ? a.eq
+                : Array.isArray(a.equipos)
+                ? a.equipos
+                : [],
+            })) || [];
 
-            const activoNombre = initialData.activo;
-            if (activoNombre) {
-              const activo = cliente.activos.find(
-                (a) => a.activo === activoNombre
-              );
-              if (activo?.equipos) {
-                setEquipos(activo.equipos || []);
-              }
-            }
+          setActivos(acts);
+
+          if (activoIdInit) {
+            const act = acts.find((a) => String(a.id) === String(activoIdInit));
+            setEquipos(act?.equipos || []);
+          } else {
+            setEquipos([]);
           }
+        } else {
+          setActivos([]);
+          setEquipos([]);
         }
-      })
-      .catch((err) => {
-        console.error("Error cargando datos iniciales:", err);
+      } catch (err) {
+        if (cancelled) return;
+        console.error("Error cargando clientes:", err);
+        setClientes([]);
+        setActivos([]);
+        setEquipos([]);
         setDataLoading(false);
-      });
-  }, []); // Solo una vez al montar
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* =========================
-     REACTIVIDAD DE CASCADA
+     CASCADA 1: Cliente -> Activos
+     - Limpia SOLO si el cliente cambió realmente (no al hidratar)
   ========================== */
-  const watchedClienteId = watch("cliente_id");
-  const watchedActivo = watch("activo");
-
   useEffect(() => {
-    if (!clientes.length || !watchedClienteId) {
+    if (!clientes.length) return;
+
+    // Si no hay cliente seleccionado
+    if (!watchedClienteId) {
       setActivos([]);
       setEquipos([]);
-      setValue("activo", "");
-      setValue("equipo", "");
-      setValue("activo_id", null);
-      setValue("equipo_id", null);
-      setValue("modelo_equipo", "");
-      setValue("fabricante_equipo", "");
+
+      // ⚠️ No limpies durante hidratación (si no, se te pierde activo/equipo en "Ver")
+      if (!isHydratingRef.current) {
+        setValue("activo_id", null);
+        setValue("activo", "");
+        setValue("equipo_id", null);
+        setValue("equipo", "");
+        setValue("modelo_equipo", "");
+        setValue("fabricante_equipo", "");
+      }
+
+      prevClienteIdRef.current = null;
+      prevActivoIdRef.current = null;
       return;
     }
 
-    const cliente = clientes.find((c) => c.id == watchedClienteId);
-    if (!cliente) return;
+    const cliente = clientes.find(
+      (c) => String(c.id) === String(watchedClienteId)
+    );
 
     const nuevosActivos =
-      cliente.activos?.map((a) => ({
+      cliente?.activos?.map((a) => ({
+        ...a,
         id: a.id,
         nombre: a.activo,
-        ...a,
+        equipos: Array.isArray(a.eq)
+          ? a.eq
+          : Array.isArray(a.equipos)
+          ? a.equipos
+          : [],
       })) || [];
+
     setActivos(nuevosActivos);
 
-    // Limpiar campos inferiores
-    setValue("activo", "");
-    setValue("equipo", "");
-    setValue("activo_id", null);
-    setValue("equipo_id", null);
-    setValue("modelo_equipo", "");
-    setValue("fabricante_equipo", "");
-  }, [watchedClienteId, clientes, setValue]);
+    const prevClienteId = prevClienteIdRef.current;
 
-  useEffect(() => {
-    if (!watchedClienteId || !watchedActivo || !clientes.length) {
+    // ✅ Limpieza SOLO si cambió el cliente (y NO estamos hidratando)
+    if (
+      !isHydratingRef.current &&
+      prevClienteId !== null &&
+      String(prevClienteId) !== String(watchedClienteId)
+    ) {
       setEquipos([]);
-      setValue("equipo", "");
+      setValue("activo_id", null);
+      setValue("activo", "");
       setValue("equipo_id", null);
+      setValue("equipo", "");
       setValue("modelo_equipo", "");
       setValue("fabricante_equipo", "");
+      prevActivoIdRef.current = null;
+    }
+
+    prevClienteIdRef.current = watchedClienteId;
+  }, [watchedClienteId, clientes, setValue]);
+
+  /* =========================
+     CASCADA 2: Activo -> Equipos
+     - NO limpia equipo al ver/editar durante hidratación
+     - La limpieza “real” del equipo se hace en handleActivoChange (cuando el usuario cambia)
+  ========================== */
+  useEffect(() => {
+    // Si no hay activo seleccionado, vacía equipos
+    if (!watchedActivoId) {
+      setEquipos([]);
+
+      // ⚠️ Solo limpiar campos si el usuario está editando y ya pasó hidratación
+      if (!isHydratingRef.current && !isViewMode) {
+        setValue("equipo_id", null);
+        setValue("equipo", "");
+        setValue("modelo_equipo", "");
+        setValue("fabricante_equipo", "");
+      }
+
+      prevActivoIdRef.current = null;
       return;
     }
 
-    const cliente = clientes.find((c) => c.id == watchedClienteId);
-    const activo = cliente?.activos?.find((a) => a.activo === watchedActivo);
-    setEquipos(activo?.equipos || []);
+    const activo = activos.find(
+      (a) => String(a.id) === String(watchedActivoId)
+    );
 
-    setValue("equipo", "");
-    setValue("equipo_id", null);
-    setValue("modelo_equipo", "");
-    setValue("fabricante_equipo", "");
-  }, [watchedActivo, watchedClienteId, clientes, setValue]);
+    // ✅ los equipos ya están normalizados en activo.equipos, pero dejamos fallback por seguridad
+    const eqs = activo?.equipos || activo?.eq || [];
+    setEquipos(eqs);
+
+    const prevActivoId = prevActivoIdRef.current;
+
+    // ✅ Solo limpiar si cambió el activo (y NO estamos hidratando, y NO en modo ver)
+    if (
+      !isHydratingRef.current &&
+      !isViewMode &&
+      prevActivoId !== null &&
+      String(prevActivoId) !== String(watchedActivoId)
+    ) {
+      setValue("equipo_id", null);
+      setValue("equipo", "");
+      setValue("modelo_equipo", "");
+      setValue("fabricante_equipo", "");
+    }
+
+    prevActivoIdRef.current = watchedActivoId;
+  }, [watchedActivoId, activos, setValue, isViewMode]);
 
   /* =========================
-     HANDLERS DE SELECCIÓN
+     HANDLERS
   ========================== */
   const handleClienteChange = (e) => {
     const id = e.target.value;
-    const cliente = clientes.find((c) => c.id == id) || {};
-    setValue("cliente_id", id, { shouldDirty: true });
+    const cliente = clientes.find((c) => String(c.id) === String(id)) || {};
+
+    setValue("cliente_id", id, { shouldDirty: true, shouldValidate: true });
     setValue("cliente", cliente.cliente || "", { shouldDirty: true });
+
+    // Al cambiar cliente (acción de usuario) limpiamos dependientes
+    setValue("activo_id", null, { shouldDirty: true, shouldValidate: true });
+    setValue("activo", "", { shouldDirty: true });
+    setValue("equipo_id", null, { shouldDirty: true, shouldValidate: true });
+    setValue("equipo", "", { shouldDirty: true });
+    setValue("modelo_equipo", "", { shouldDirty: true });
+    setValue("fabricante_equipo", "", { shouldDirty: true });
+
+    prevClienteIdRef.current = id;
+    prevActivoIdRef.current = null;
   };
 
   const handleActivoChange = (e) => {
-    const nombre = e.target.value;
-    const cliente = clientes.find((c) => c.id == watchedClienteId);
-    const activo = cliente?.activos?.find((a) => a.activo === nombre) || {};
+    const activoId = e.target.value;
+    const activo = activos.find((a) => String(a.id) === String(activoId)) || {};
 
-    setValue("activo", nombre, { shouldDirty: true });
-    setValue("activo_id", activo.id || null, { shouldDirty: true });
+    setValue("activo_id", activoId, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("activo", activo.activo || activo.nombre || "", {
+      shouldDirty: true,
+    });
+
+    // ✅ Esta es la limpieza correcta (solo cuando el usuario cambia activo)
+    setValue("equipo_id", null, { shouldDirty: true, shouldValidate: true });
+    setValue("equipo", "", { shouldDirty: true });
+    setValue("modelo_equipo", "", { shouldDirty: true });
+    setValue("fabricante_equipo", "", { shouldDirty: true });
+
+    prevActivoIdRef.current = activoId;
   };
 
   const handleEquipoChange = (e) => {
-    const nombreEquipo = e.target.value;
-    const equipo = equipos.find((eq) => eq.equipo === nombreEquipo) || {};
+    const equipoId = e.target.value;
+    const equipo =
+      equipos.find((eq) => String(eq.id) === String(equipoId)) || {};
 
+    setValue("equipo_id", equipoId, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
     setValue("equipo", equipo.equipo || "", { shouldDirty: true });
-    setValue("equipo_id", equipo.id || null, { shouldDirty: true });
     setValue("modelo_equipo", equipo.modelo || "", { shouldDirty: true });
     setValue("fabricante_equipo", equipo.fabricante || "", {
       shouldDirty: true,
     });
   };
 
-  const handleLubricanteChange = (e) => {
-    const raw = e.target.raw;
-    setValue("lubricante_id", e.target.value, {
+  const handleLubricanteChange = (eOrItem) => {
+    const value = eOrItem?.target?.value ?? eOrItem?.value ?? "";
+    const raw = eOrItem?.target?.raw ?? eOrItem?.raw ?? null;
+
+    setValue("lubricante_id", value, {
       shouldDirty: true,
       shouldValidate: true,
     });
@@ -222,17 +366,14 @@ const ComponenteFormContent = ({
   };
 
   /* =========================
-     CLASE MODAL (MANTIENE COMPORTAMIENTO ORIGINAL)
+     CLASE MODAL (solo si existe modal)
   ========================== */
   useEffect(() => {
     const modal = document.querySelector(".MuiModal-root");
     if (!modal) return;
 
-    if (isViewMode) {
-      modal.classList.add("componentesForm-page");
-    } else {
-      modal.classList.remove("componentesForm-page");
-    }
+    if (isViewMode) modal.classList.add("componentesForm-page");
+    else modal.classList.remove("componentesForm-page");
 
     return () => modal.classList.remove("componentesForm-page");
   }, [isViewMode]);
@@ -240,13 +381,9 @@ const ComponenteFormContent = ({
   /* =========================
      SUBMIT
   ========================== */
-  const submitForm = (data) => {
-    onSubmit(data);
-  };
+  const submitForm = (data) => onSubmit(data);
 
-  if (dataLoading) {
-    return <CircularProgress sx={{ m: 4 }} />;
-  }
+  if (dataLoading) return <CircularProgress sx={{ m: 4 }} />;
 
   /* =========================
      RENDER
@@ -297,7 +434,7 @@ const ComponenteFormContent = ({
             <Grid sx={{ display: "flex", gap: "1em" }}>
               <GenericSelect
                 label="Cliente"
-                value={getValues("cliente_id") || ""}
+                value={watchedClienteId || ""}
                 onChange={handleClienteChange}
                 disabled={isViewMode || loading || dataLoading}
                 optionsOverride={clientes.map((c) => ({
@@ -312,32 +449,32 @@ const ComponenteFormContent = ({
 
               <GenericSelect
                 label="Activo"
-                value={getValues("activo") || ""}
+                value={watchedActivoId || ""}
                 onChange={handleActivoChange}
                 disabled={isViewMode || loading || activos.length === 0}
                 optionsOverride={activos.map((a) => ({
-                  value: a.nombre,
+                  value: a.id,
                   label: a.nombre,
                 }))}
                 fullWidth
                 sx={{ width: "calc(100% / 3)" }}
-                error={!!errors.activo}
-                helperText={errors.activo?.message}
+                error={!!errors.activo_id}
+                helperText={errors.activo_id?.message}
               />
 
               <GenericSelect
                 label="Equipo"
-                value={getValues("equipo") || ""}
+                value={watchedEquipoId || ""}
                 onChange={handleEquipoChange}
                 disabled={isViewMode || loading || equipos.length === 0}
                 optionsOverride={equipos.map((eq) => ({
-                  value: eq.equipo,
+                  value: eq.id,
                   label: eq.equipo,
                 }))}
                 fullWidth
                 sx={{ width: "calc(100% / 3)" }}
-                error={!!errors.equipo}
-                helperText={errors.equipo?.message}
+                error={!!errors.equipo_id}
+                helperText={errors.equipo_id?.message}
               />
             </Grid>
 
@@ -347,7 +484,7 @@ const ComponenteFormContent = ({
                 sx={{ width: "calc(100% / 3)" }}
                 endpoint="/api/lubricantes"
                 label="Lubricante"
-                value={getValues("lubricante_id") || ""}
+                value={watchedLubricanteId || ""}
                 disabled={isViewMode || loading}
                 placeholder="Buscar lubricante..."
                 sortBy="codigo"
@@ -419,7 +556,7 @@ const ComponenteFormContent = ({
               Historial de servicios
             </Typography>
             <Divider sx={{ mb: 1 }} />
-            <ServiciosTable componenteId={initialData.id} />
+            <ServiciosTable componenteId={initialData.id} readOnly={false} />
           </Paper>
         )}
       </Grid>

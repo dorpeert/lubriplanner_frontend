@@ -17,6 +17,7 @@ const FabricanteFormContent = ({
   // ===== Validation =====
   const validationSchema = useMemo(() => fabricanteValidationSchema(), []);
 
+  // ✅ resolver memorizado
   const resolver = useMemo(
     () => yupResolver(validationSchema),
     [validationSchema]
@@ -39,12 +40,10 @@ const FabricanteFormContent = ({
 
   // ===== Sync initial data (edit / view) =====
   useEffect(() => {
-    reset({
-      name: initialData?.name || "",
-    });
+    reset({ name: initialData?.name || "" });
   }, [initialData?.name, reset]);
 
-  // ===== Notify parent about validation =====
+  // Informar estado al padre
   useEffect(() => {
     onValidationChange?.(isValid, isDirty);
   }, [isValid, isDirty, onValidationChange]);

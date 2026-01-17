@@ -1,12 +1,12 @@
-// src/forms/TipoLubricanteFormContent.jsx
+// src/forms/PrestadorFormContent.jsx
 import React, { useMemo, useEffect } from "react";
 import { TextField } from "@mui/material";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { tipoLubricanteValidationSchema } from "../../validations/listas/tipoLubricanteSchema";
+import { prestadorValidationSchema } from "../../validations/listas/prestadorSchema";
 
-const TipoLubricanteFormContent = ({
-  formId = "tipo-lubricante-form",
+const PrestadorFormContent = ({
+  formId = "prestador-form",
   formData: initialData = {},
   isViewMode = false,
   loading = false,
@@ -15,7 +15,7 @@ const TipoLubricanteFormContent = ({
   backendErrors = null,
 }) => {
   // ===== Validation =====
-  const validationSchema = useMemo(() => tipoLubricanteValidationSchema(), []);
+  const validationSchema = useMemo(() => prestadorValidationSchema(), []);
 
   // ✅ resolver memorizado
   const resolver = useMemo(
@@ -61,7 +61,7 @@ const TipoLubricanteFormContent = ({
 
   // ===== Submit =====
   const submitForm = (data) => {
-    console.log("SUBMIT FABRICANTE FORM:", data);
+    console.log("SUBMIT CLASE FORM:", data);
     onSubmit?.(data);
   };
 
@@ -70,7 +70,7 @@ const TipoLubricanteFormContent = ({
       <TextField
         required
         fullWidth
-        label="Tipo de lubricante"
+        label="Nombre del Prestador"
         variant="filled"
         disabled={isViewMode || loading}
         {...register("name")}
@@ -81,4 +81,4 @@ const TipoLubricanteFormContent = ({
   );
 };
 
-export default React.memo(TipoLubricanteFormContent);
+export default React.memo(PrestadorFormContent);

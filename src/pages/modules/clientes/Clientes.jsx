@@ -1,117 +1,66 @@
-// src/pages/Clientes.jsx
-import GenericTaxonomyTable from "../../../components/GenericTaxonomyTable";
-import ClienteFormContent from "../../../forms/ClienteFormContent";
-import { useNavigate, useLocation } from "react-router-dom";
-
-const toAbsolute = (url) => {
-  if (!url) return null;
-  if (url.startsWith("http")) return url; // ya es absoluta
-  return `https://lightcoral-emu-437776.hostingersite.com${url}`;
-};
-
-const mapCliente = (item) => ({
-  id: item.id,
-  attributes: {
-    // Para mostrar en la tabla
-    name: item.cliente,
-    numero: item.field_numero_de_contacto || "-",
-    email: item.email || "-",
-    notificaciones: item.field_enviar_notificaciones === true ? "Sí" : "No",
-    activos_count: item.activos?.length || 0,
-    prestador: item.field_prestador_de_servicio || "-",
-
-    // Datos completos para el formulario
-    cliente_id: item.id,
-    title: item.cliente,
-    field_enviar_notificaciones: item.field_enviar_notificaciones || false,
-    field_numero_de_contacto: item.field_numero_de_contacto || "",
-    field_email_de_contacto: item.email || "",
-    field_logo_del_cliente: item.field_logo_del_cliente || null,
-    field_prestador_de_servicio: item.field_prestador_de_servicio,
-
-    // Activos (con equipos)
-    field_activos: (item.activos || []).map((a) => ({
-      activo: a.activo,
-      activo_id: a.id,
-      imagen_url: toAbsolute(a.imagen_del_activo),
-      imagen_fid: null, // el backend no lo da en GET
-      equipos: a.equipos || [],
-    })),
-  },
-});
+// Clientes.jsx (PRO - EntityCrudPage)
+import EntityCrudPage from "../../../componentsNew/EntityCrudPage.jsx";
+import ClienteFormContent from "../../../forms/ClienteFormContent.jsx";
+import GenericMultiSelect from "../../../componentsNew/GenericMultiSelect.jsx";
 
 export default function Clientes() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const endpoint = "/api/clientes";
 
-  const handleNavigateToComponents = (params) => {
-    const search = new URLSearchParams(params).toString();
+  // ✅ Filtros
+  // Nombres alineados a la salida del API (formatCliente):
+  // cliente, prestador_de_servicio, numero_de_contacto, email_contacto
+  const filtersConfig = [
+    { name: "cliente", label: "Nombre", type: "text" },
 
-    navigate(`/componentes?${search}`, {
-      state: {
-        from: location.pathname,
-        reopenModal: {
-          entity: "cliente",
-          id: params.cliente,
-          mode: "view",
-          extra: {
-            activo: params.activo,
-            equipo: params.equipo,
-          },
-        },
-      },
-    });
-  };
+    {
+      name: "prestador_de_servicio",
+      label: "Prestador de servicio",
+      render: ({ value, onChange }) => (
+        <GenericMultiSelect
+          label="Prestador de servicio"
+          name="prestador_de_servicio"
+          endpoint="/api/listas/prestadores_de_servicios"
+          value={Array.isArray(value) ? value : []}
+          onChange={(e) => onChange(e.target.value)}
+          size="small"
+          // Listas devuelve {tid,name}
+          labelField="name"
+          valueField="name"
+          placeholder="Seleccione..."
+          limit={100}
+        />
+      ),
+    },
+
+    { name: "numero_de_contacto", label: "Número de contacto", type: "text" },
+    { name: "email_contacto", label: "Email de contacto", type: "text" },
+  ];
+
+  // ✅ Columnas para DataTable (row[col.field])
+  const columns = [
+    { field: "cliente", header: "Cliente" },
+    { field: "prestador_de_servicio", header: "Prestador" },
+    { field: "field_numero_de_contacto", header: "Contacto" },
+    { field: "field_email_de_contacto", header: "Email" },
+  ];
 
   return (
-    <GenericTaxonomyTable
-      modalSize="L"
+    <EntityCrudPage
       title="Clientes"
-      addButtonText="Cliente"
-      endpoint="/api/clientes"
-      dataMapper={mapCliente}
-      customFormContent={ClienteFormContent}
-      showExport={true}
-      componentesAsociadosConfig={{
-        param: "cliente",
-        idField: "id",
+      entityName="Cliente"
+      endpoint={endpoint}
+      filtersConfig={filtersConfig}
+      columns={columns}
+      FormContent={ClienteFormContent}
+      formId="cliente-form"
+      queryMode="drupalFilter"
+      getRowId={(row) => row?.id}
+      messages={{
+        createSuccess: "Cliente creado correctamente",
+        editSuccess: "Cliente actualizado correctamente",
+        deleteSuccess: "Cliente eliminado correctamente",
       }}
-      formExtraProps={{
-        onNavigateToComponents: handleNavigateToComponents,
-      }}
-      tableColumns={[
-        { field: "name", header: "Nombre" },
-        { field: "prestador", header: "Prestador" },
-        { field: "numero", header: "Número" },
-        { field: "email", header: "E-Mail" },
-        { field: "notificaciones", header: "Notificaciones" },
-        { field: "activos_count", header: "Activos" },
-      ]}
-      showFilters={true}
-      searchFields={[
-        { name: "title", label: "Nombre de Cliente", field: "name" },
-
-        {
-          name: "prestador",
-          label: "Prestador de servicio",
-          type: "selectMultiple",
-          endpoint: "/api/listas/prestadores_de_servicios",
-          labelField: "name",
-          valueField: "id",
-          multiple: true,
-        },
-
-        {
-          name: "field_numero_de_contacto",
-          label: "Número de Contacto",
-          field: "field_numero_de_contacto",
-        },
-        {
-          name: "field_email_de_contacto",
-          label: "E-mail de Contacto",
-          field: "email",
-        },
-      ]}
+      modalProps={{ size: "lg" }}
     />
   );
 }

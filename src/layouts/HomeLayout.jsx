@@ -43,7 +43,7 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import { NavLink } from "react-router-dom";
-import BreadcrumbNav from "../components/BreadcrumbNav";
+import BreadcrumbNav from "../componentsNew/BreadcrumbNav";
 
 const drawerWidth = 240;
 

@@ -1,47 +1,49 @@
 // src/forms/LubricanteFormContent.jsx
-import React, { useMemo, useEffect } from "react";
-import { TextField } from "@mui/material";
-import { useForm } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import { lubricanteValidationSchema } from "../validations/lubricanteSchema";
-import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
-import GenericSelect from "../components/GenericSelect";
-import { useState, useCallback } from "react";
-
+import React, { useMemo, useEffect, useState, useCallback } from "react";
 import {
   Box,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Paper,
   Avatar,
   Stack,
   Typography,
   CircularProgress,
   Alert,
+  TextField,
 } from "@mui/material";
+import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import { lubricanteValidationSchema } from "../validations/lubricanteSchema";
+import GenericSelect from "../componentsNew/GenericSelect";
+import ImageDropUploader from "../componentsNew/ImageDropUploader";
+import AssociatedComponentsButton from "../componentsNew/AssociatedComponentsButton";
 
 const LubricanteFormContent = ({
-  formId,
+  formId = "lubricante-form",
   formData: initialData = {},
   isViewMode = false,
   loading = false,
   onValidationChange,
-  existingCodes = [],
   editingItem = null,
   onSubmit,
+  backendErrors = null,
 }) => {
+  // ======================
+  // Validation
+  // ======================
+  const currentId = editingItem?.id ?? initialData?.id ?? null;
   const validationSchema = useMemo(
-    () => lubricanteValidationSchema(editingItem?.id),
-    [editingItem]
+    () => lubricanteValidationSchema(currentId),
+    [currentId]
   );
-
   const resolver = useMemo(
     () => yupResolver(validationSchema),
     [validationSchema]
   );
 
+  // ======================
+  // Form
+  // ======================
   const {
     register,
     handleSubmit,
@@ -49,139 +51,104 @@ const LubricanteFormContent = ({
     setValue,
     getValues,
     watch,
-    trigger,
-    formState: { errors, isDirty, isValid },
+    setError,
+    formState: { errors, isValid, isDirty },
   } = useForm({
-    resolver,
-    mode: "onChange",
-    defaultValues: initialData,
+    resolver: isViewMode ? undefined : resolver,
+    mode: isViewMode ? "onSubmit" : "onChange",
+    defaultValues: {
+      codigo: "",
+      title: "",
+      origen: "",
+      familia: "",
+      clasificacion: "",
+      descripcion: "",
+      fabricante: "",
+      tipo: "",
+      lob: "",
+      empaque: "",
+      galones_empaque: "",
+      especificaciones: "",
+      field_imagen_del_lubricante: "",
+    },
   });
 
+  // ======================
+  // Sync initial data (edit / view)
+  // ======================
   useEffect(() => {
-    reset(initialData);
-    const imageUrl =
-      initialData.field_imagen_del_lubricante ||
-      initialData.imagen_del_lubricante;
-    if (imageUrl && imageUrl.startsWith("http")) {
-      setImagePreview(imageUrl);
-    } else if (imageUrl) {
-    }
-  }, [initialData, reset, trigger]);
+    reset({
+      codigo: initialData?.codigo || initialData?.field_codigo || "",
+      title: initialData?.title || "",
+      origen: initialData?.origen || initialData?.field_origen || "",
+      familia: initialData?.familia || initialData?.field_familia || "",
+      clasificacion:
+        initialData?.clasificacion || initialData?.field_clasificacion || "",
+      descripcion:
+        initialData?.descripcion || initialData?.field_descripcion || "",
+      fabricante:
+        initialData?.fabricante || initialData?.field_fabricante || "",
+      tipo:
+        initialData?.tipo ||
+        initialData?.field_tipo_de_lubricante ||
+        initialData?.tipo_lubricante ||
+        "",
+      lob: initialData?.lob || initialData?.field_lob || "",
+      empaque: initialData?.empaque || initialData?.field_empaque || "",
+      galones_empaque:
+        initialData?.galones_empaque ||
+        initialData?.field_galones_empaque ||
+        "",
+      especificaciones:
+        initialData?.especificaciones ||
+        initialData?.field_especificaciones ||
+        "",
+      field_imagen_del_lubricante:
+        initialData?.field_imagen_del_lubricante ||
+        initialData?.imagen_del_lubricante ||
+        "",
+    });
 
+    const imageUrl = initialData?.imagen_del_lubricante || null;
+
+    if (typeof imageUrl === "string" && imageUrl.startsWith("http")) {
+      setImagePreview(imageUrl);
+    } else if (!imageUrl) {
+      setImagePreview(null);
+    }
+  }, [initialData, reset]);
+
+  // ======================
+  // Inform parent (valid/dirty)
+  // ======================
   useEffect(() => {
     onValidationChange?.(isValid, isDirty);
   }, [isValid, isDirty, onValidationChange]);
 
-  // === ESTADO PARA IMAGEN ===
-  const [dragActive, setDragActive] = useState(false);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState(null);
-
-  // Actualiza preview cuando cambia el campo de imagen (FID o URL)
-  const watchedImage = watch("field_imagen_del_lubricante");
+  // ======================
+  // Backend errors -> fields
+  // ======================
   useEffect(() => {
-    // Si tienes una URL directa desde Drupal, úsala. Si solo FID, puedes tener una función para generar URL.
-    // Por ahora asumimos que result.data.url se guarda o se genera.
-    // Si solo tienes FID, puedes dejar imagePreview como null hasta tener lógica para mostrarlo.
-  }, [watchedImage]);
+    if (!backendErrors) return;
 
-  // === UPLOAD A DRUPAL ===
-  const uploadToDrupal = useCallback(
-    async (file) => {
-      setUploading(true);
-      setUploadError(null);
-
-      const formDataToUpload = new FormData();
-      formDataToUpload.append("file", file);
-
-      try {
-        const URL =
-          "https://lightcoral-emu-437776.hostingersite.com/web/api/lubricantes/upload-image";
-
-        const response = await fetch(URL, {
-          method: "POST",
-          body: formDataToUpload,
-          credentials: "include",
-        });
-
-        const result = await response.json();
-
-        if (result.status === true) {
-          const fid = result.data.fid;
-          setValue("field_imagen_del_lubricante", fid, {
-            shouldValidate: true,
-            shouldDirty: true,
-          });
-          setImagePreview(result.data.url || result.data.relative_url);
-          return fid;
-        } else {
-          throw new Error(result.message || "Error desconocido");
-        }
-      } catch (error) {
-        console.error("❌ Error subiendo imagen:", error);
-        setUploadError(error.message || "Error al subir la imagen");
-        return null;
-      } finally {
-        setUploading(false);
-      }
-    },
-    [setValue]
-  );
-
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (file.size > 3 * 1024 * 1024) {
-      setUploadError("La imagen no puede exceder 3MB");
-      return;
-    }
-    if (!file.type.startsWith("image/")) {
-      setUploadError("Solo se permiten imágenes (JPG, PNG, GIF, SVG)");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result);
-    reader.readAsDataURL(file);
-
-    await uploadToDrupal(file);
-  };
-
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await handleImageChange({ target: { files: e.dataTransfer.files } });
-    }
-  };
-
-  const removeImage = () => {
-    setImagePreview(null);
-    setValue("field_imagen_del_lubricante", "", {
-      shouldValidate: true,
-      shouldDirty: true,
+    Object.entries(backendErrors).forEach(([field, messages]) => {
+      setError(field, {
+        type: "server",
+        message: Array.isArray(messages) ? messages[0] : String(messages),
+      });
     });
-    setUploadError(null);
-  };
+  }, [backendErrors, setError]);
 
-  // Imagen a mostrar (preview local o desde Drupal)
-  const imageToShow =
-    imagePreview ||
-    initialData.field_imagen_del_lubricante ||
-    initialData.imagen_del_lubricante;
+  // ======================
+  // Image state
+  // ======================
+
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
+
+  // ======================
+  // Submit (map -> Drupal fields)
+  // ======================
   const submitForm = (data) => {
     const mappedData = {
       title: data.title,
@@ -198,405 +165,406 @@ const LubricanteFormContent = ({
       field_especificaciones: data.especificaciones || null,
       field_imagen_del_lubricante: data.field_imagen_del_lubricante || null,
     };
-    onSubmit(mappedData);
+
+    onSubmit?.(mappedData);
   };
 
   useEffect(() => {
-    console.log("🔍 EDITING ITEM ID:", editingItem?.id);
-    console.log("🔍 CURRENT ID pasado al schema:", editingItem?.id);
+    if (!editingItem?.id) return;
+    console.log("🔍 EDITING ITEM ID:", editingItem.id);
   }, [editingItem]);
 
   return (
-    <form id={formId} onSubmit={handleSubmit(submitForm)}>
-      <div
-        style={{ display: "flex", gap: "16px" }}
-        className="edit-form sections"
-      >
-        {/* COLUMNA IZQUIERDA */}
-        <div style={{ width: "70%", display: "flex", flexDirection: "column", gap: "16px" }} className="section">
-          <div style={{ display: "flex", gap: "16px" }}>
-            <TextField
-              required
-              fullWidth
-              label="Código"
-              disabled={isViewMode || loading}
-              variant="filled"
-              {...register("codigo")}
-              error={!!errors.codigo}
-              helperText={errors.codigo?.message}
-              sx={{
-                ...(isViewMode && {
-                  backgroundColor: "#f5f5f5",
-                  "& .MuiInputBase-input": {
-                    color: "#666",
-                    WebkitTextFillColor: "#666",
-                  },
-                }),
-              }}
-            />
-
-            <TextField
-              required
-              fullWidth
-              label="Nombre Comercial"
-              disabled={isViewMode || loading}
-              variant="filled"
-              {...register("title")}
-              error={!!errors.title}
-              helperText={errors.title?.message}
-              sx={{
-                mb: 2,
-                ...(isViewMode && {
-                  backgroundColor: "#f5f5f5",
-                  "& .MuiInputBase-input": { color: "#666" },
-                }),
-              }}
-            />
-          </div>
-
-          <div style={{ display: "flex", gap: "16px" }}>
-            <GenericSelect
-              required
-              name="origen"
-              label="Origen"
-              value={getValues("origen") || ""}
-              onChange={(e) =>
-                setValue("origen", e.target.value, {
-                  shouldValidate: true,
-                  shouldDirty: true,
-                })
-              }
-              optionsOverride={[
-                { value: "Nacional", label: "Nacional" },
-                { value: "Importado", label: "Importado" },
-              ]}
-              labelField="name"
-              valueField="id"
-              fullWidth
-              disabled={isViewMode || loading}
-              returnLabel={true} // Si quieres que guarde el nombre y no el id
-              sx={{
-                ...(isViewMode && {
-                  "& .MuiSelect-select": { color: "#666 !important" },
-                  "& .MuiSvgIcon-root": { color: "#999 !important" },
-                }),
-              }}
-            />
-
-            <TextField
-              fullWidth
-              label="Familia"
-              disabled={isViewMode || loading}
-              variant="filled"
-              {...register("familia")}
-              error={!!errors.familia}
-              helperText={errors.familia?.message}
-              sx={{
-                ...(isViewMode && {
-                  backgroundColor: "#f5f5f5",
-                  "& .MuiInputBase-input": {
-                    color: "#666",
-                    WebkitTextFillColor: "#666",
-                  },
-                }),
-              }}
-            />
-
-            <GenericSelect
-              required
-              name="clasificacion"
-              label="Clasificación"
-              value={getValues("clasificacion") || ""}
-              onChange={(e) =>
-                setValue("clasificacion", e.target.value, {
-                  shouldValidate: true,
-                  shouldDirty: true,
-                })
-              }
-              endpoint="/api/listas/clasificaciones"
-              labelField="name"
-              valueField="id"
-              fullWidth
-              disabled={isViewMode || loading}
-              returnLabel={true}
-              sx={{
-                ...(isViewMode && {
-                  "& .MuiSelect-select": {
-                    color: "#666 !important",
-                    WebkitTextFillColor: "#666",
-                  },
-                  "& .MuiSvgIcon-root": { color: "#999 !important" },
-                }),
-              }}
-            />
-          </div>
-
-          <TextField
-            fullWidth
-            label="Descripción"
-            multiline
-            disabled={isViewMode || loading}
-            variant="filled"
-            {...register("descripcion")}
-            error={!!errors.descripcion}
-            helperText={errors.descripcion?.message}
-            sx={{
-              mb: 2,
-              ...(isViewMode && {
-                backgroundColor: "#f5f5f5",
-                "& .MuiInputBase-input": {
-                  color: "#666",
-                  WebkitTextFillColor: "#666",
-                },
-              }),
-            }}
-          />
-
-          <div style={{ display: "flex", gap: "16px" }}>
-            <div style={{ width: "calc(100% / 3)" }}>
-              <GenericSelect
-                required
-                name="fabricante"
-                label="Fabricante"
-                value={getValues("fabricante") || ""}
-                onChange={(e) =>
-                  setValue("fabricante", e.target.value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                  })
-                }
-                endpoint="/api/listas/fabricantes_de_lubricantes"
-                labelField="name"
-                valueField="id"
-                fullWidth
-                disabled={isViewMode || loading}
-                returnLabel={true}
-                sx={{
-                  ...(isViewMode && {
-                    "& .MuiSelect-select": { color: "#666 !important" },
-                    "& .MuiSvgIcon-root": { color: "#999 !important" },
-                  }),
-                }}
-              />
-            </div>
-
-            <div style={{ width: "calc(100% / 3)" }}>
-              <GenericSelect
-                required
-                name="tipo"
-                label="Tipo de Lubricante"
-                value={getValues("tipo") || ""}
-                onChange={(e) =>
-                  setValue("tipo", e.target.value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                  })
-                }
-                endpoint="/api/listas/tipos_de_lubricante"
-                labelField="name"
-                valueField="id"
-                fullWidth
-                disabled={isViewMode || loading}
-                returnLabel={true}
-                sx={{
-                  ...(isViewMode && {
-                    "& .MuiSelect-select": { color: "#666 !important" },
-                    "& .MuiSvgIcon-root": { color: "#999 !important" },
-                  }),
-                }}
-              />
-            </div>
-
-            <div style={{ width: "calc(100% / 3)" }}>
-              <GenericSelect
-                required
-                name="lob"
-                label="LOB"
-                value={getValues("lob") || ""}
-                onChange={(e) =>
-                  setValue("lob", e.target.value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                  })
-                }
-                endpoint="/api/listas/lob"
-                labelField="name"
-                valueField="id"
-                fullWidth
-                disabled={isViewMode || loading}
-                returnLabel={true}
-                sx={{
-                  ...(isViewMode && {
-                    "& .MuiSelect-select": { color: "#666 !important" },
-                    "& .MuiSvgIcon-root": { color: "#999 !important" },
-                  }),
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: "16px" }}>
-            <GenericSelect
-              required
-              name="empaque"
-              label="Empaque"
-              value={getValues("empaque") || ""}
-              onChange={(e) =>
-                setValue("empaque", e.target.value, {
-                  shouldValidate: true,
-                  shouldDirty: true,
-                })
-              }
-              endpoint="/api/listas/empaques"
-              labelField="name"
-              valueField="id"
-              fullWidth
-              disabled={isViewMode || loading}
-              returnLabel={true}
-              sx={{
-                ...(isViewMode && {
-                  "& .MuiSelect-select": { color: "#666 !important" },
-                  "& .MuiSvgIcon-root": { color: "#999 !important" },
-                }),
-              }}
-            />
-
-            <TextField
-              required
-              fullWidth
-              label="Galones / Empaque"
-              type="number"
-              disabled={isViewMode || loading}
-              variant="filled"
-              {...register("galones_empaque")}
-              error={!!errors.galones_empaque}
-              helperText={errors.galones_empaque?.message}
-              sx={{
-                ...(isViewMode && {
-                  backgroundColor: "#f5f5f5",
-                  "& .MuiInputBase-input": {
-                    color: "#666",
-                    WebkitTextFillColor: "#666",
-                  },
-                }),
-              }}
-            />
-          </div>
-
-          <TextField
-            fullWidth
-            label="Especificaciones Técnicas"
-            multiline
-            disabled={isViewMode || loading}
-            variant="filled"
-            {...register("especificaciones")}
-            error={!!errors.especificaciones}
-            helperText={errors.especificaciones?.message}
-            sx={{
-              ...(isViewMode && {
-                backgroundColor: "#f5f5f5",
-                "& .MuiInputBase-input": {
-                  color: "#666",
-                  WebkitTextFillColor: "#666",
-                },
-              }),
-            }}
-          />
-        </div>
-
-        {/* COLUMNA DERECHA: IMAGEN */}
-        <div style={{ width: "30%" }} className="section">
-          <Paper
-            variant="outlined"
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={() =>
-              !isViewMode && document.getElementById("imageFileInput").click()
-            }
-            sx={{
-              textAlign: "center",
-              height: "100%",
-              border: dragActive ? "2px dashed #3A4D9C" : "2px dashed #3A4D9C",
-              backgroundColor: dragActive
-                ? "#3a4e9c3b"
-                : imageToShow
-                ? "none"
-                : "#3a4e9c15",
-              transition: "all 0.3s ease",
-              cursor: isViewMode ? "default" : "pointer",
+    <>
+      <form id={formId} onSubmit={handleSubmit(submitForm)}>
+        <div
+          style={{ display: "flex", gap: "16px" }}
+          className="edit-form sections"
+        >
+          {/* COLUMNA IZQUIERDA */}
+          <div
+            style={{
+              width: "70%",
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              flexDirection: "column",
+              gap: "16px",
             }}
+            className="section"
           >
-            <input
-              id="imageFileInput"
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={handleImageChange}
+            <div style={{ display: "flex", gap: "16px" }}>
+              <TextField
+                required
+                fullWidth
+                label="Código"
+                disabled={isViewMode || loading}
+                variant="filled"
+                {...register("codigo")}
+                error={!!errors.codigo}
+                helperText={errors.codigo?.message}
+                sx={{
+                  ...(isViewMode && {
+                    backgroundColor: "#f5f5f5",
+                    "& .MuiInputBase-input": {
+                      color: "#666",
+                      WebkitTextFillColor: "#666",
+                    },
+                  }),
+                }}
+              />
+
+              <TextField
+                required
+                fullWidth
+                label="Nombre Comercial"
+                disabled={isViewMode || loading}
+                variant="filled"
+                {...register("title")}
+                error={!!errors.title}
+                helperText={errors.title?.message}
+                sx={{
+                  ...(isViewMode && {
+                    backgroundColor: "#f5f5f5",
+                    "& .MuiInputBase-input": { color: "#666" },
+                  }),
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "16px" }}>
+              <GenericSelect
+                required
+                name="origen"
+                label="Origen"
+                value={getValues("origen") || ""}
+                onChange={(e) =>
+                  setValue("origen", e.target.value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
+                }
+                optionsOverride={[
+                  { value: "Nacional", label: "Nacional" },
+                  { value: "Importado", label: "Importado" },
+                ]}
+                fullWidth
+                disabled={isViewMode || loading}
+                returnLabel
+                sx={{
+                  ...(isViewMode && {
+                    "& .MuiSelect-select": { color: "#666 !important" },
+                    "& .MuiSvgIcon-root": { color: "#999 !important" },
+                  }),
+                }}
+              />
+
+              <TextField
+                fullWidth
+                label="Familia"
+                disabled={isViewMode || loading}
+                variant="filled"
+                {...register("familia")}
+                error={!!errors.familia}
+                helperText={errors.familia?.message}
+                sx={{
+                  ...(isViewMode && {
+                    backgroundColor: "#f5f5f5",
+                    "& .MuiInputBase-input": {
+                      color: "#666",
+                      WebkitTextFillColor: "#666",
+                    },
+                  }),
+                }}
+              />
+
+              <GenericSelect
+                required
+                name="clasificacion"
+                label="Clasificación"
+                value={getValues("clasificacion") || ""}
+                onChange={(e) =>
+                  setValue("clasificacion", e.target.value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
+                }
+                endpoint="/api/listas/clasificaciones"
+                fullWidth
+                disabled={isViewMode || loading}
+                returnLabel
+                sx={{
+                  ...(isViewMode && {
+                    "& .MuiSelect-select": {
+                      color: "#666 !important",
+                    },
+                    "& .MuiSvgIcon-root": { color: "#999 !important" },
+                  }),
+                }}
+              />
+            </div>
+
+            <TextField
+              fullWidth
+              label="Descripción"
+              multiline
               disabled={isViewMode || loading}
+              variant="filled"
+              {...register("descripcion")}
+              error={!!errors.descripcion}
+              helperText={errors.descripcion?.message}
+              sx={{
+                ...(isViewMode && {
+                  backgroundColor: "#f5f5f5",
+                  "& .MuiInputBase-input": {
+                    color: "#666",
+                    WebkitTextFillColor: "#666",
+                  },
+                }),
+              }}
             />
 
-            {uploading ? (
-              <Stack spacing={2} sx={{ py: 4 }}>
-                <CircularProgress size={40} />
-                <Typography variant="body2" color="text.secondary">
-                  Subiendo imagen...
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Por favor espera
-                </Typography>
-              </Stack>
-            ) : imageToShow ? (
-              <Box>
-                <Avatar
-                  src={imageToShow}
-                  variant="rounded"
-                  sx={{ height: "auto", width: "100%", objectFit: "contain" }}
+            <div style={{ display: "flex", gap: "16px" }}>
+              <div style={{ width: "calc(100% / 3)" }}>
+                <GenericSelect
+                  required
+                  name="fabricante"
+                  label="Fabricante"
+                  value={getValues("fabricante") || ""}
+                  onChange={(e) =>
+                    setValue("fabricante", e.target.value, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    })
+                  }
+                  endpoint="/api/listas/fabricantes_de_lubricantes"
+                  fullWidth
+                  disabled={isViewMode || loading}
+                  returnLabel
+                  sx={{
+                    ...(isViewMode && {
+                      "& .MuiSelect-select": { color: "#666 !important" },
+                      "& .MuiSvgIcon-root": { color: "#999 !important" },
+                    }),
+                  }}
                 />
-                {uploadError && (
-                  <Alert severity="error" sx={{ mt: 2 }} variant="outlined">
-                    {uploadError}
-                  </Alert>
-                )}
-              </Box>
-            ) : (
-              <Stack spacing={1} sx={{ alignItems: "center" }}>
-                <AddPhotoAlternateIcon
-                  sx={{ fontSize: 40, color: "#3A4D9C" }}
-                />
-                <Typography
-                  variant="subtitle1"
-                  color="text.secondary"
-                  sx={{ lineHeight: 1.2 }}
-                >
-                  Arrastra y suelta la imagen
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  o haz clic para seleccionar
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  JPG, PNG, GIF, SVG <br /> (Máx. 3MB)
-                </Typography>
-              </Stack>
-            )}
-          </Paper>
+              </div>
 
-          {errors.field_imagen_del_lubricante && (
+              <div style={{ width: "calc(100% / 3)" }}>
+                <GenericSelect
+                  required
+                  name="tipo"
+                  label="Tipo de Lubricante"
+                  value={getValues("tipo") || ""}
+                  onChange={(e) =>
+                    setValue("tipo", e.target.value, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    })
+                  }
+                  endpoint="/api/listas/tipos_de_lubricante"
+                  fullWidth
+                  disabled={isViewMode || loading}
+                  returnLabel
+                  sx={{
+                    ...(isViewMode && {
+                      "& .MuiSelect-select": { color: "#666 !important" },
+                      "& .MuiSvgIcon-root": { color: "#999 !important" },
+                    }),
+                  }}
+                />
+              </div>
+
+              <div style={{ width: "calc(100% / 3)" }}>
+                <GenericSelect
+                  required
+                  name="lob"
+                  label="LOB"
+                  value={getValues("lob") || ""}
+                  onChange={(e) =>
+                    setValue("lob", e.target.value, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    })
+                  }
+                  endpoint="/api/listas/lob"
+                  fullWidth
+                  disabled={isViewMode || loading}
+                  returnLabel
+                  sx={{
+                    ...(isViewMode && {
+                      "& .MuiSelect-select": { color: "#666 !important" },
+                      "& .MuiSvgIcon-root": { color: "#999 !important" },
+                    }),
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "16px" }}>
+              <GenericSelect
+                required
+                name="empaque"
+                label="Empaque"
+                value={getValues("empaque") || ""}
+                onChange={(e) =>
+                  setValue("empaque", e.target.value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
+                }
+                endpoint="/api/listas/empaques"
+                fullWidth
+                disabled={isViewMode || loading}
+                returnLabel
+                sx={{
+                  ...(isViewMode && {
+                    "& .MuiSelect-select": { color: "#666 !important" },
+                    "& .MuiSvgIcon-root": { color: "#999 !important" },
+                  }),
+                }}
+              />
+
+              <TextField
+                required
+                fullWidth
+                label="Galones / Empaque"
+                type="number"
+                disabled={isViewMode || loading}
+                variant="filled"
+                {...register("galones_empaque")}
+                error={!!errors.galones_empaque}
+                helperText={errors.galones_empaque?.message}
+                sx={{
+                  ...(isViewMode && {
+                    backgroundColor: "#f5f5f5",
+                    "& .MuiInputBase-input": {
+                      color: "#666",
+                      WebkitTextFillColor: "#666",
+                    },
+                  }),
+                }}
+              />
+            </div>
+
+            <TextField
+              fullWidth
+              label="Especificaciones Técnicas"
+              multiline
+              disabled={isViewMode || loading}
+              variant="filled"
+              {...register("especificaciones")}
+              error={!!errors.especificaciones}
+              helperText={errors.especificaciones?.message}
+              sx={{
+                ...(isViewMode && {
+                  backgroundColor: "#f5f5f5",
+                  "& .MuiInputBase-input": {
+                    color: "#666",
+                    WebkitTextFillColor: "#666",
+                  },
+                }),
+              }}
+            />
+          </div>
+
+          {/* COLUMNA DERECHA: IMAGEN */}
+          <div style={{ width: "30%" }} className="section">
             <Typography
-              color="error"
-              variant="caption"
-              sx={{ mt: 1, display: "block" }}
+              variant="subtitle2"
+              sx={{
+                backgroundColor: "#3A4D9C40",
+                padding: "2px 8px",
+                width: "max-content",
+                borderRadius: "8px 8px 0px 0px",
+                left: "8px",
+                position: "relative",
+                color: "#3a4d9c",
+                fontSize: "0.8rem",
+              }}
             >
-              {errors.field_imagen_del_lubricante.message}
+              Imagen del lubricante
             </Typography>
-          )}
+
+            <ImageDropUploader
+              value={imagePreview}
+              disabled={isViewMode || loading}
+              height={392}
+              maxPreviewHeight={380}
+              previewVariant="img"
+              objectFit="contain"
+              title="Arrastra y suelta la imagen"
+              subtitle="o haz clic para seleccionar"
+              caption="JPG, PNG, GIF, SVG (Máx. 3MB)"
+              onUpload={async (file) => {
+                setImageUploading(true);
+                try {
+                  const formDataToUpload = new FormData();
+                  formDataToUpload.append("file", file);
+
+                  const URL =
+                    "https://lightcoral-emu-437776.hostingersite.com/web/api/lubricantes/upload-image";
+
+                  const response = await fetch(URL, {
+                    method: "POST",
+                    body: formDataToUpload,
+                    credentials: "include",
+                  });
+
+                  const result = await response.json();
+
+                  if (result?.status === true) {
+                    return {
+                      fid: result?.data?.fid ?? null,
+                      url:
+                        result?.data?.url ?? result?.data?.relative_url ?? null,
+                    };
+                  }
+
+                  throw new Error(result?.message || "Error desconocido");
+                } finally {
+                  setImageUploading(false);
+                }
+              }}
+              onUploaded={(result) => {
+                // ✅ guardar FID en el campo que ya usas para enviar al backend
+                if (result?.fid) {
+                  setValue("field_imagen_del_lubricante", String(result.fid), {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  });
+                }
+
+                // ✅ preview
+                if (result?.url) setImagePreview(result.url);
+              }}
+              onClear={() => {
+                setImagePreview(null);
+                setValue("field_imagen_del_lubricante", "", {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                });
+              }}
+              onError={(msg) => {
+                console.error("❌ Error subiendo imagen:", msg);
+              }}
+            />
+
+            {errors.field_imagen_del_lubricante && (
+              <Typography
+                color="error"
+                variant="caption"
+                sx={{ mt: 1, display: "block" }}
+              >
+                {errors.field_imagen_del_lubricante.message}
+              </Typography>
+            )}
+          </div>
         </div>
-      </div>
-    </form>
+      </form>
+      <AssociatedComponentsButton
+        label="Ver componentes"
+        params={{ lubricante: currentId }}
+      />
+    </>
   );
 };
 
