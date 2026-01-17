@@ -9,7 +9,7 @@ import {
   Alert,
   Typography,
 } from "@mui/material";
-import apiListasClient from "../api/apiListasClient";
+import apiClient from "../api/apiClient";
 
 /**
  * =========================================================
@@ -131,11 +131,12 @@ const GenericSelect = ({
 
         // Búsqueda
         if (searchQuery && searchEnabled) {
-          params.append("filter[search]", searchQuery);
+          params.append("filter[name]", searchQuery);
         }
 
-        // Límite
-        if (limit) params.append("page[limit]", limit);
+        // Límite (API custom: ?limit=100)
+        if (limit) params.append("limit", String(limit));
+        if (!params.has("page")) params.append("page", "0");
 
         // Ordenamiento
         if (sortBy) {
@@ -146,7 +147,7 @@ const GenericSelect = ({
           url += `?${params.toString()}`;
         }
 
-        const response = await apiListasClient.get(url);
+        const response = await apiClient.get(url);
         let rawData = response.data;
 
         // Normalización de respuesta

@@ -264,8 +264,9 @@ const ClienteFormContent = ({
       <div style={{ flex: 1 }}>
         <form id={formId} onSubmit={handleSubmit(submitForm)}>
           {/* =========================
-          DATOS DE CONTACTO
-      ========================== */}
+              DATOS DE CONTACTO
+              ========================== 
+          */}
           <Paper sx={{ p: 2, mb: 2 }}>
             <Typography variant="subtitle1">Datos de contacto</Typography>
             <Divider sx={{ mb: 2 }} />
@@ -487,6 +488,9 @@ const ClienteFormContent = ({
                 </Button>
               )}
             </Divider>
+
+
+            
 
             {/* === LISTA DE ACTIVOS === */}
 

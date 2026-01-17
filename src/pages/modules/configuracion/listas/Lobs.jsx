@@ -1,22 +1,34 @@
-import { Box } from "@mui/material";
-import GenericTaxonomyTable from "../../../../components/GenericTaxonomyTable";
+import EntityCrudPage from "../../../../componentsNew/EntityCrudPage.jsx";
 import LobFormContent from "../../../../forms/listas/LobFormContent";
 
-const formFields = [{ name: "name", label: "Nombre del LOB", type: "text" }];
-const tableColumns = [{ field: "name", header: "Nombre del LOB", flex: 1 }];
-
 export default function Lobs() {
+  const endpoint = "/api/listas/lob";
+
+  const filtersConfig = [
+    { name: "name", label: "Buscar Lob", type: "text" },
+  ];
+
+  const columns = [
+  //  { field: "tid", header: "id" },
+    { field: "name", header: "Nombre del Lob" },
+  ];
+
   return (
-    <Box>
-      <GenericTaxonomyTable
-        botonCompAsociados={false}
-        title="LOBs"
-        addButtonText="LOB"
-        endpoint="/api/listas/lob"
-        createFormFields={formFields}
-        tableColumns={tableColumns}
-        customFormContent={LobFormContent}
-      />
-    </Box>
+    <EntityCrudPage
+      title="LOBs"
+      entityName="Lob"
+      endpoint={endpoint}
+      filtersConfig={filtersConfig}
+      columns={columns}
+      FormContent={LobFormContent}
+      formId="lob-form"
+      queryMode="drupalFilter"
+      getRowId={(row) => row?.tid}
+      messages={{
+        createSuccess: "Lob creado correctamente",
+        editSuccess: "Lob actualizado correctamente",
+        deleteSuccess: "Lob eliminado correctamente",
+      }}
+    />
   );
 }

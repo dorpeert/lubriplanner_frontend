@@ -54,10 +54,6 @@ body {
   line-height: 1.2;
 }
 
-.MuiPaper-root {
-  box-shadow: none !important;
-}
-
 table .acciones-column {
   width: 12em;
   text-align: center;
@@ -96,12 +92,21 @@ table thead .MuiTableCell-root {
 }
 
 
+
 .MuiInputLabel-animated{
   transform: translate(12px, 7px) scale(0.75) !important;
 }
 
+.equipos-section .equipo-box .equipo-head-field p{
+ font-weight: 600;
+}
 
-/* MODO TRABAJO  */
+.equipos-section .equipo-box .equipo-body p{
+ font-size: .8rem;
+}
+
+
+/* MODO TRABAJO  *
 #root, .content-container {
   background-color: #080b19 !important
 }

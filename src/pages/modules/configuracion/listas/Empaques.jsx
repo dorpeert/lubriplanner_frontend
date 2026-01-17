@@ -1,20 +1,34 @@
-import { Box } from "@mui/material";
-import GenericTaxonomyTable from "../../../../components/GenericTaxonomyTable";
-import TipoEmpaqueFormContent from "../../../../forms/listas/TipoEmpaqueFormContent";
+import EntityCrudPage from "../../../../componentsNew/EntityCrudPage.jsx";
+import EmpaqueFormContent from "../../../../forms/Listas/TipoEmpaqueFormContent.jsx";
 
 export default function Empaques() {
+  const endpoint = "/api/listas/empaques";
+
+  const filtersConfig = [
+    { name: "name", label: "Buscar empaque", type: "text" },
+  ];
+
+  const columns = [
+  //  { field: "tid", header: "id" },
+    { field: "name", header: "Empaque" },
+  ];
+
   return (
-    <Box>
-      <GenericTaxonomyTable
-        botonCompAsociados={false}
-        title="Tipos de Empaques"
-        addButtonText="Tipo de empaque"
-        endpoint="/api/listas/empaques"
-        createFormFields={[{ name: "name", label: "Tipo de Empaque" }]}
-        tableColumns={[{ field: "name", header: "Tipo de Empaque" }]}
-        customFormContent={TipoEmpaqueFormContent}
-        showExport={true}
-      />
-    </Box>
+    <EntityCrudPage
+      title="Empaques"
+      entityName="Empaque"
+      endpoint={endpoint}
+      filtersConfig={filtersConfig}
+      columns={columns}
+      FormContent={EmpaqueFormContent}
+      formId="empaque-form"
+      queryMode="drupalFilter"
+      getRowId={(row) => row?.tid} // importante para taxonomías
+      messages={{
+        createSuccess: "Empaque creado correctamente",
+        editSuccess: "Empaque actualizado correctamente",
+        deleteSuccess: "Empaque eliminado correctamente",
+      }}
+    />
   );
 }

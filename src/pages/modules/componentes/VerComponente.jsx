@@ -11,13 +11,20 @@ const BASE_URL = "https://lightcoral-emu-437776.hostingersite.com/web";
 const mapComponenteDetalle = (item) => ({
   id: item.id,
   title: item.title,
+
   cliente: item.cliente,
   cliente_id: item.cliente_id,
+
   activo: item.activo,
   activo_id: item.activo_id,
+
   equipo: item.equipo,
+  equipo_id: item.equipo_id,
+
   lubricante: item.lubricante,
   lubricante_id: item.lubricante_id,
+  lubricante_codigo: item.lubricante_codigo,
+
   frecuencia_cambio: item.frecuencia_cambio,
   frecuencia_muestreo: item.frecuencia_muestreo,
   volumen_requerido: item.volumen_requerido,

@@ -38,17 +38,19 @@ export default function useEntityForm({
   };
 
   const openEdit = (data) => {
+    const id = data?.tid ?? data?.id ?? null;
     setMode("edit");
-    setFormData(data);
-    setEntityId(data.id);
+    setEntityId(id);
+    setFormData({ ...data, tid: id, id }); // dejamos ambos por compatibilidad
     setBackendErrors(null);
     setOpen(true);
   };
 
   const openView = (data) => {
+    const id = data?.tid ?? data?.id ?? null;
     setMode("view");
-    setFormData(data);
-    setEntityId(data.id);
+    setEntityId(id);
+    setFormData({ ...data, tid: id, id });
     setBackendErrors(null);
     setOpen(true);
   };
@@ -89,7 +91,11 @@ export default function useEntityForm({
         await apiClient.post(endpoint, data);
         showSnackbar(messages.createSuccess, "success");
       } else {
-        await apiClient.patch(`${endpoint}/${entityId}`, data);
+        await apiClient.post(`${endpoint}/${entityId}`, data, {
+          headers: {
+            "X-HTTP-Method-Override": "PATCH",
+          },
+        });
         showSnackbar(messages.editSuccess, "success");
       }
 

@@ -1,321 +1,614 @@
-// src/forms/ClienteFormContent.jsx
-import React, { useMemo, useState, useCallback } from "react";
-import { useForm } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import InlineEdit from "../components/InlineEdit";
-import { useEffect } from "react";
-import GenericSelect from "../components/GenericSelect";
-import { useNavigate } from "react-router-dom";
-import { clienteValidationSchema } from "../validations/clienteSchema";
+// ClienteFormContent.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
-  TextField,
-  Switch,
-  FormControlLabel,
+  Button,
+  CircularProgress,
+  Divider,
+  Grid,
   Paper,
   Stack,
+  Switch,
+  TextField,
   Typography,
-  CircularProgress,
   Alert,
-  Avatar,
-  IconButton,
-  Button,
-  Grid,
-  Divider,
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  IconButton,
   Tooltip,
 } from "@mui/material";
-import {
-  Add as AddIcon,
-  Delete as DeleteIcon,
-  AddPhotoAlternate as AddPhotoAlternateIcon,
-  Clear as ClearIcon,
-  ExpandMore as ExpandMore,
-} from "@mui/icons-material";
+
+import { useNavigate, useLocation } from "react-router-dom";
+
+import { useForm, useFieldArray } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+
+import GenericSelect from "../componentsNew/GenericSelect";
+import InlineEdit from "../componentsNew/InlineEdit";
+import ImageDropUploader from "../componentsNew/ImageDropUploader";
+import AssociatedComponentsButton from "../componentsNew/AssociatedComponentsButton";
+
+import apiClient from "../api/apiClient";
+import { clienteValidationSchema } from "../validations/clienteSchema";
+
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import DeleteIcon from "@mui/icons-material/Delete";
+import AddIcon from "@mui/icons-material/Add";
+
+const BASE_URL = "https://lightcoral-emu-437776.hostingersite.com/web";
+
+/**
+ * ✅ Componente hijo por activo.
+ * Importante: aquí SÍ podemos usar useFieldArray para equipos sin violar reglas de hooks.
+ */
+function ActivoAccordion({
+  control,
+  watch,
+  setValue,
+  isViewMode,
+  index,
+  activoField,
+  eliminarActivo,
+  navigate,
+  location,
+}) {
+  const activoNombre = watch(`field_activos.${index}.activo`) ?? "";
+  const clienteId = watch("cliente_id");
+  const activoId = watch(`field_activos.${index}.activo_id`);
+
+  const imagenUrl = watch(`field_activos.${index}.imagen_url`) ?? null;
+  const imagenFid = watch(`field_activos.${index}.imagen_fid`) ?? null;
+
+  const equiposPath = `field_activos.${index}.equipos`;
+  const {
+    fields: equipos,
+    append,
+    remove,
+  } = useFieldArray({
+    control,
+    name: equiposPath,
+  });
+
+  return (
+    <Accordion
+      elevation={0}
+      disableGutters
+      sx={{ width: "100%", backgroundColor: "white" }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <InlineEdit
+            value={activoNombre}
+            placeholder="Nombre del activo"
+            displayValue="Nombre del activo"
+            disabled={isViewMode}
+            onChange={(val) =>
+              setValue(`field_activos.${index}.activo`, val, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+            sx={{ fontWeight: 600, flex: 1 }}
+          />
+        </Box>
+      </AccordionSummary>
+
+      <AccordionDetails>
+        <Box fullWidth sx={{ display: "flex", gap: 2, flexDirection: "row" }}>
+          <Box sx={{ width: "25%" }}>
+            <Typography
+              variant="subtitle2"
+              sx={{
+                backgroundColor: "#3A4D9C40",
+                padding: "2px 8px",
+                width: "max-content",
+                borderRadius: "8px 8px 0px 0px",
+                left: "8px",
+                position: "relative",
+                color: "#3a4d9c",
+                fontSize: "0.8rem",
+              }}
+            >
+              Imagen del activo
+            </Typography>
+
+            <ImageDropUploader
+              value={imagenUrl}
+              disabled={isViewMode}
+              height={225}
+              maxPreviewHeight={160}
+              previewVariant="avatar"
+              objectFit="cover"
+              title="Arrastra y suelta la imagen"
+              subtitle="o haz clic para seleccionar"
+              caption="JPG, PNG, GIF, SVG (Máx. 3MB)"
+              onUpload={async (file) => {
+                const form = new FormData();
+                form.append("file", file);
+
+                // ✅ usa tu endpoint de activos (ver sección backend)
+                const res = await apiClient.post(
+                  `${BASE_URL}/api/clientes/upload-activo-image`,
+                  form,
+                  { headers: { "Content-Type": "multipart/form-data" } }
+                );
+
+                const fid = res?.data?.data?.fid ?? null;
+                const url = res?.data?.data?.url ?? null;
+
+                return { fid, url };
+              }}
+              onUploaded={(result) => {
+                // ✅ guarda fid para que el backend asigne la imagen
+                if (result?.fid) {
+                  setValue(
+                    `field_activos.${index}.imagen_fid`,
+                    String(result.fid),
+                    {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    }
+                  );
+                }
+
+                // ✅ guarda url para preview
+                if (result?.url) {
+                  setValue(`field_activos.${index}.imagen_url`, result.url, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  });
+                }
+              }}
+              onClear={() => {
+                setValue(`field_activos.${index}.imagen_url`, null, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+                setValue(`field_activos.${index}.imagen_fid`, null, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              }}
+              onError={(msg) =>
+                console.error("❌ Error subiendo imagen de activo:", msg)
+              }
+            />
+          </Box>
+
+          <Box className="equipos-section" sx={{ width: "75%" }}>
+            <Typography variant="subtitle1">Equipos</Typography>
+            <Divider
+              textAlign="right"
+              sx={{
+                marginBottom: "1em",
+                ...(!isViewMode && {
+                  position: "relative",
+                  top: "-20px",
+                  marginBottom: 0,
+                }),
+              }}
+            >
+              {!isViewMode && (
+                <Button
+                  size="small"
+                  variant="text"
+                  endIcon={<AddIcon />}
+                  onClick={() =>
+                    append({
+                      id: null,
+                      equipo: "",
+                      modelo: "",
+                      fabricante: "",
+                    })
+                  }
+                  disabled={isViewMode}
+                >
+                  Agregar equipo
+                </Button>
+              )}
+            </Divider>
+
+            <Stack
+              sx={{
+                gap: 2,
+                flexDirection: "row",
+                flexWrap: "wrap",
+              }}
+              spacing={1}
+            >
+              {equipos.map((eqField, eqIndex) => {
+                const equipoId = watch(
+                  `field_activos.${index}.equipos.${eqIndex}.id`
+                );
+
+                return (
+                  <Paper
+                    className="equipo-box"
+                    key={eqField.id}
+                    variant="outlined"
+                    sx={{
+                      marginTop: "0 !important",
+                      width: "30%",
+                      height: 204,
+                      display: "flex",
+                      flexDirection: "column",
+                    }}
+                  >
+                    <Box
+                      className="field-inlineEdit equipo-head-field field-nombre-equipo"
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 1,
+                        borderRadius: "8px 8px 0 0",
+                        p: "2px 16px",
+                        backgroundColor: "#3A4D9C40",
+                        color: "#3A4D9C",
+                        fontSize: ".8rem",
+                      }}
+                    >
+                      <InlineEdit
+                        value={
+                          watch(
+                            `field_activos.${index}.equipos.${eqIndex}.equipo`
+                          ) ?? ""
+                        }
+                        placeholder="Nombre del equipo"
+                        displayValue="Nombre del equipo"
+                        disabled={isViewMode}
+                        onChange={(val) =>
+                          setValue(
+                            `field_activos.${index}.equipos.${eqIndex}.equipo`,
+                            val,
+                            { shouldDirty: true, shouldValidate: true }
+                          )
+                        }
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </Box>
+
+                    <Box
+                      className="equipo-body"
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 0.5,
+                        p: 1.5,
+                        flex: 1,
+                        overflowY: "auto",
+                      }}
+                    >
+                      <Box
+                        className="field-inlineEdit equipo-body-field field-modelo"
+                        sx={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 0.5,
+                          alignItems: "baseline",
+                        }}
+                      >
+                        <Typography
+                          variant="body2"
+                          sx={{ fontSize: ".8rem", opacity: 0.6 }}
+                        >
+                          Modelo:
+                        </Typography>
+                        <InlineEdit
+                          sx={{ fontSize: ".8rem" }}
+                          value={
+                            watch(
+                              `field_activos.${index}.equipos.${eqIndex}.modelo`
+                            ) ?? ""
+                          }
+                          placeholder="Indique modelo"
+                          displayValue="Indique modelo"
+                          disabled={isViewMode}
+                          onChange={(val) =>
+                            setValue(
+                              `field_activos.${index}.equipos.${eqIndex}.modelo`,
+                              val,
+                              { shouldDirty: true, shouldValidate: true }
+                            )
+                          }
+                        />
+                      </Box>
+
+                      <Box
+                        className="field-inlineEdit equipo-body-field field-fabricante"
+                        sx={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 0.5,
+                        }}
+                      >
+                        <Typography
+                          variant="body2"
+                          sx={{ fontSize: ".8rem", opacity: 0.6 }}
+                        >
+                          Fabricante:
+                        </Typography>
+                        <InlineEdit
+                          sx={{ fontSize: ".8rem" }}
+                          value={
+                            watch(
+                              `field_activos.${index}.equipos.${eqIndex}.fabricante`
+                            ) ?? ""
+                          }
+                          placeholder="Indique fabricante"
+                          displayValue="Indique fabricante"
+                          disabled={isViewMode}
+                          onChange={(val) =>
+                            setValue(
+                              `field_activos.${index}.equipos.${eqIndex}.fabricante`,
+                              val,
+                              { shouldDirty: true, shouldValidate: true }
+                            )
+                          }
+                        />
+                      </Box>
+                    </Box>
+
+                    <Box
+                      className="equipo-footer"
+                      sx={{
+                        display: "flex",
+                        gap: 1,
+                        alignItems: "center",
+                        justifyContent: "flex-end",
+                        p: 1,
+                        borderTop: "1px solid #eee",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {isViewMode && (
+                        <AssociatedComponentsButton
+                          label="Componentes"
+                          params={{
+                            cliente: clienteId,
+                            activo: activoId,
+                            equipo: equipoId,
+                          }}
+                        />
+                      )}
+                      {!isViewMode && (
+                        <Tooltip
+                          arrow
+                          placement="top"
+                          title={`Eliminar ${
+                            watch(
+                              `field_activos.${index}.equipos.${eqIndex}.equipo`
+                            ) ?? ""
+                          }`}
+                        >
+                          <IconButton
+                            color="error"
+                            onClick={() => remove(eqIndex)}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </Stack>
+
+            {!isViewMode && (
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: ".5em",
+                }}
+              >
+                <Tooltip
+                  arrow
+                  placement="left"
+                  title={`Eliminar ${activoNombre}`}
+                >
+                  <IconButton
+                    color="error"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      eliminarActivo(index);
+                    }}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      </AccordionDetails>
+    </Accordion>
+  );
+}
 
 const ClienteFormContent = ({
-  formId,
+  formId = "cliente-form",
   formData: initialData = {},
   isViewMode = false,
   loading = false,
   onValidationChange,
   editingItem = null,
   onSubmit,
+  backendErrors = null,
 }) => {
-  const validationSchema = useMemo(
-    () => clienteValidationSchema(editingItem?.id),
-    [editingItem]
-  );
+  const navigate = useNavigate();
+  const location = useLocation();
 
+  // ======================
+  // Validation
+  // ======================
+  const currentId = editingItem?.id ?? initialData?.id ?? null;
+  const validationSchema = useMemo(
+    () => clienteValidationSchema(currentId),
+    [currentId]
+  );
   const resolver = useMemo(
     () => yupResolver(validationSchema),
     [validationSchema]
   );
 
+  // ======================
+  // Form
+  // ======================
   const {
     handleSubmit,
     reset,
     setValue,
-    formState: { errors, isDirty, isValid },
+    control,
+    watch,
+    setError,
+    formState: { errors, isValid, isDirty },
   } = useForm({
-    resolver,
-    mode: "onChange",
-    defaultValues: initialData,
+    resolver: isViewMode ? undefined : resolver,
+    mode: isViewMode ? "onSubmit" : "onChange",
+    shouldUnregister: false, // ✅ CLAVE
+    defaultValues: {
+      cliente: "",
+      cliente_id: null,
+      field_prestador_de_servicio: "",
+      field_enviar_notificaciones: false,
+      field_numero_de_contacto: "",
+      field_email_de_contacto: "",
+      field_logo_del_cliente: null,
+      field_activos: [],
+    },
   });
 
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
+
+  // ✅ Activos fieldArray
+  const {
+    fields: activos,
+    append: appendActivo,
+    remove: removeActivo,
+  } = useFieldArray({
+    control,
+    name: "field_activos",
+  });
+
+  // ======================
+  // Sync initial data (edit / view)
+  // ======================
+  const mapFromApi = (data) => {
+    const apiActivos = data?.activos || [];
+    return apiActivos.map((a) => ({
+      activo_id: a?.id ? String(a.id) : null,
+      activo: a?.activo ?? "",
+      imagen_url: a?.imagen_del_activo ?? null,
+      imagen_fid: a?.imagen_fid ? String(a.imagen_fid) : null,
+      descripcion: a?.descripcion ?? null,
+      equipos: (a?.eq || []).map((e) => ({
+        id: e?.id ? String(e.id) : null,
+        equipo: e?.equipo ?? "",
+        modelo: e?.modelo ?? "",
+        fabricante: e?.fabricante ?? "",
+      })),
+    }));
+  };
+
   useEffect(() => {
-    reset(initialData);
+    reset({
+      cliente: initialData?.cliente ?? "",
+      cliente_id: initialData?.id ?? null,
+
+      field_prestador_de_servicio:
+        initialData?.field_prestador_de_servicio ??
+        initialData?.prestador_de_servicio ??
+        "",
+      field_enviar_notificaciones:
+        !!initialData?.field_enviar_notificaciones ??
+        !!initialData?.enviar_notificaciones ??
+        false,
+      field_numero_de_contacto:
+        initialData?.field_numero_de_contacto ??
+        initialData?.numero_de_contacto ??
+        "",
+      field_email_de_contacto:
+        initialData?.field_email_de_contacto ??
+        initialData?.email ??
+        initialData?.email_de_contacto ??
+        "",
+      field_logo_del_cliente: initialData?.field_logo_del_cliente ?? null,
+      field_activos: mapFromApi(initialData),
+    });
+
+    const logoUrl = initialData?.field_logo_del_cliente_url;
+    if (typeof logoUrl === "string" && logoUrl.length > 5)
+      setImagePreview(logoUrl);
+    else setImagePreview(null);
   }, [initialData, reset]);
 
+  // ======================
+  // Inform parent (valid/dirty)
+  // ======================
   useEffect(() => {
     onValidationChange?.(isValid, isDirty);
   }, [isValid, isDirty, onValidationChange]);
 
-  const [dragActive, setDragActive] = useState(false);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState(null);
-
-  const handleChange = (e) => {
-    if (typeof setFormData !== "function") return;
-
-    const { name, value, checked, type } = e.target;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  // Upload de logo
-  const uploadToDrupal = useCallback(
-    async (file) => {
-      setUploading(true);
-      setUploadError(null);
-
-      const formDataUpload = new FormData();
-      formDataUpload.append("file", file);
-
-      try {
-        const response = await fetch(
-          "https://lightcoral-emu-437776.hostingersite.com/web/api/clientes/upload-image",
-          {
-            method: "POST",
-            body: formDataUpload,
-            credentials: "include",
-          }
-        );
-
-        const result = await response.json();
-
-        if (result.status === true) {
-          const fid = result.data.fid;
-          const url = result.data.url;
-
-          setFormData((prev) => ({
-            ...prev,
-            field_logo_del_cliente: fid, // Guardamos FID (Drupal lo necesita)
-          }));
-
-          setImagePreview(url);
-          return fid;
-        } else {
-          throw new Error(result.message || "Error al subir imagen");
-        }
-      } catch (error) {
-        console.error("Error subiendo logo:", error);
-        setUploadError(error.message);
-      } finally {
-        setUploading(false);
-      }
-    },
-    [setValue]
-  );
-
-  const uploadActivoImage = async (file, activoIndex) => {
-    const formDataUpload = new FormData();
-    formDataUpload.append("file", file);
-
-    try {
-      const res = await fetch(
-        "https://lightcoral-emu-437776.hostingersite.com/web/api/clientes/upload-activo-image",
-        {
-          method: "POST",
-          body: formDataUpload,
-          credentials: "include",
-        }
-      );
-      const json = await res.json();
-      if (json.status) {
-        setFormData((prev) => {
-          const nuevos = [...prev.field_activos];
-          nuevos[activoIndex].imagen_url = json.data.url;
-          nuevos[activoIndex].imagen_fid = json.data.fid;
-          return { ...prev, field_activos: nuevos };
-        });
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // === AGREGAR ACTIVO ===
-  const agregarActivo = () => {
-    setFormData((prev) => ({
-      ...prev,
-      field_activos: [
-        {
-          activo: "",
-          imagen_url: null,
-          imagen_fid: null,
-          equipos: [],
-        },
-        ...(prev.field_activos || []),
-      ],
-    }));
-    setActivoIndexEditing((prev.field_activos || []).length);
-  };
-
-  // === AGREGAR EQUIPO ===
-  const agregarEquipo = (activoIndex) => {
-    setFormData((prev) => {
-      const nuevos = [...prev.field_activos];
-      const oldEquipos = nuevos[activoIndex].equipos || [];
-
-      nuevos[activoIndex] = {
-        ...nuevos[activoIndex],
-        equipos: [
-          {
-            equipo: "",
-            modelo: "",
-            fabricante: "",
-          },
-          ...oldEquipos,
-        ],
-      };
-
-      return { ...prev, field_activos: nuevos };
-    });
-  };
-
-  // === ELIMINAR ===
-  const eliminarActivo = (index) => {
-    setFormData((prev) => ({
-      ...prev,
-      field_activos: prev.field_activos.filter((_, i) => i !== index),
-    }));
-    if (activoIndexEditing === index) setActivoIndexEditing(null);
-  };
-
-  const eliminarEquipo = (activoIndex, eqIndex) => {
-    setFormData((prev) => {
-      const nuevos = [...prev.field_activos];
-
-      nuevos[activoIndex] = {
-        ...nuevos[activoIndex],
-        equipos: nuevos[activoIndex].equipos.filter((_, i) => i !== eqIndex),
-      };
-
-      return { ...prev, field_activos: nuevos };
-    });
-  };
-
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (file.size > 3 * 1024 * 1024) {
-      setUploadError("Máximo 3MB");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result);
-    reader.readAsDataURL(file);
-
-    await uploadToDrupal(file);
-  };
-
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragover" || e.type === "dragenter") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files?.[0]) {
-      await handleImageChange({ target: { files: e.dataTransfer.files } });
-    }
-  };
-
-  const removeImage = (e) => {
-    e.stopPropagation();
-    setImagePreview(null);
-    setUploadError(null);
-    setFormData((prev) => ({ ...prev, field_logo_del_cliente: "" }));
-  };
-
-  // Mostrar logo existente o preview
-  const currentLogo =
-    imagePreview ||
-    (typeof formData.field_logo_del_cliente === "string"
-      ? formData.field_logo_del_cliente
-      : null);
-
+  // ======================
+  // Backend errors -> fields
+  // ======================
   useEffect(() => {
-    const el = document.querySelector(".MuiModal-root");
-    if (!el) return;
+    if (!backendErrors) return;
+    Object.entries(backendErrors).forEach(([field, messages]) => {
+      setError(field, {
+        type: "server",
+        message: Array.isArray(messages) ? messages[0] : String(messages),
+      });
+    });
+  }, [backendErrors, setError]);
 
-    el.classList.add("clientesForm-page");
+  const formData = watch();
 
-    return () => {
-      el.classList.remove("clientesForm-page");
-    };
-  }, []);
+  // helper setValue consistente
+  const setField = (name, value) => {
+    setValue(name, value, { shouldDirty: true, shouldValidate: true });
+  };
 
-  const navigate = useNavigate();
+  const handleTextChange = (e) => {
+    const { name, value } = e.target;
+    setField(name, value);
+  };
 
-  const submitForm = () => {
-    console.log("SUBMIT CLIENTE:", formData);
-    onSubmit(formData);
+  const addActivo = () => {
+    appendActivo({
+      activo_id: null,
+      activo: "",
+      imagen_url: null,
+      imagen_fid: null,
+      descripcion: null,
+      equipos: [],
+    });
+  };
+
+  const eliminarActivo = (index) => removeActivo(index);
+
+  // ======================
+  // Submit
+  // ======================
+  const submitForm = (data) => {
+    onSubmit?.(data);
   };
 
   return (
-    <div
-      style={{ display: "flex", gap: "24px" }}
-      className="edit-form sections"
-    >
+    <div className="edit-form sections">
       <div style={{ flex: 1 }}>
-        <Paper
-          sx={{
-            p: ".5em 1em 1em 1em",
-            mb: 2,
-            borderRadius: 1,
-          }}
-        >
-          <Typography variant="subtitle1" gutterBottom color="#212121">
-            Datos de contacto
-          </Typography>
+        <form id={formId} onSubmit={handleSubmit(submitForm)}>
+          {/* =========================
+              DATOS DE CONTACTO
+              ========================== */}
+          <Paper elevation={0} sx={{ p: 2, mb: 2 }}>
+            <Typography variant="subtitle1">Datos de contacto</Typography>
+            <Divider sx={{ mb: 2 }} />
 
-          <Divider sx={{ mb: 1 }} />
-          <form id={formId} onSubmit={handleSubmit(submitForm)}>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                gap: "16px",
-              }}
-            >
+            <div style={{ display: "flex", flexDirection: "row", gap: "16px" }}>
               <div
                 style={{
                   display: "flex",
@@ -324,633 +617,216 @@ const ClienteFormContent = ({
                   width: "calc(100% / 3)",
                 }}
               >
-                <TextField
-                  fullWidth
-                  label="Nombre de Cliente"
-                  name="title"
-                  value={formData.title || ""}
-                  onChange={handleChange}
-                  required
-                  disabled={isViewMode || loading}
-                  variant="filled"
-                  sx={{ mb: 3 }}
-                />
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Cliente"
+                    variant="filled"
+                    required
+                    name="cliente"
+                    value={formData?.cliente ?? ""}
+                    onChange={handleTextChange}
+                    disabled={isViewMode || loading}
+                    error={!!errors?.cliente}
+                    helperText={errors?.cliente?.message}
+                  />
+                </Grid>
 
-                <GenericSelect
-                  name="field_prestador_de_servicio"
-                  label="Prestador del Servicio"
-                  value={formData.field_prestador_de_servicio || ""}
-                  onChange={(e) => {
-                    if (!isViewMode && typeof setFormData === "function") {
-                      handleChange(e);
+                <Grid item xs={12} md={6}>
+                  <GenericSelect
+                    label="Prestador de servicio"
+                    variant="filled"
+                    required
+                    endpoint="/api/listas/prestadores_de_servicios"
+                    name="field_prestador_de_servicio"
+                    value={formData?.field_prestador_de_servicio ?? ""}
+                    onChange={(e) =>
+                      setField("field_prestador_de_servicio", e.target.value)
                     }
-                  }}
-                  endpoint="/api/listas/prestadores_de_servicios"
-                  labelField="name"
-                  valueField="id"
-                  fullWidth
-                  disabled={isViewMode || loading}
-                  returnLabel={true}
-                  sx={{
-                    ...(isViewMode && {
-                      backgroundColor: "#f8f9fa !important",
-                      "& .MuiSelect-select": {
-                        color: "#666 !important",
-                        WebkitTextFillColor: "#666",
-                      },
-                      "& .MuiSvgIcon-root": {
-                        color: "#999 !important",
-                      },
-                    }),
-                  }}
-                />
-
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={!!formData.field_enviar_notificaciones}
-                      onChange={handleChange}
-                      name="field_enviar_notificaciones"
-                      disabled={isViewMode || loading}
-                      color="primary"
-                    />
-                  }
-                  label="Enviar Notificaciones"
-                  sx={{ mb: 3 }}
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 16,
-                  width: "calc(100% / 3)",
-                }}
-              >
-                <Paper
-                  variant="outlined"
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                  onClick={() =>
-                    !isViewMode && document.getElementById("logoInput").click()
-                  }
-                  sx={{
-                    p: 3,
-                    textAlign: "center",
-                    height: "192px",
-                    border: "2px dashed #3A4D9C",
-                    bgcolor:
-                      dragActive || currentLogo ? "#ffffff00" : "#ffffff10",
-                    transition: "all 0.3s ease",
-                    cursor: isViewMode ? "default" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <input
-                    id="logoInput"
-                    type="file"
-                    accept="image/*"
-                    hidden
-                    onChange={handleImageChange}
+                    disabled={isViewMode || loading}
+                    size="small"
+                    labelField="name"
+                    valueField="name"
+                    hasError={!!errors?.field_prestador_de_servicio}
+                    helperText={errors?.field_prestador_de_servicio?.message}
                   />
+                </Grid>
 
-                  {uploading ? (
-                    <Stack spacing={2} sx={{ alignItems: "center" }}>
-                      <CircularProgress size={48} thickness={4} />
-                      <Typography variant="body1">Subiendo logo...</Typography>
-                    </Stack>
-                  ) : currentLogo ? (
-                    <Box sx={{ position: "relative", width: "100%", p: 2 }}>
-                      <Box
-                        component="img"
-                        src={currentLogo}
-                        alt="Logo del cliente"
-                        sx={{
-                          width: "100%",
-                          height: "auto",
-                          maxHeight: "96px",
-                          objectFit: "contain",
-                        }}
-                        onError={(e) => {
-                          console.error("Logo falló:", currentLogo);
-                          e.target.src =
-                            "https://via.placeholder.com/400x300.png?text=Logo+No+Encontrado";
-                        }}
-                      />
-                    </Box>
-                  ) : (
-                    <Stack spacing={1} sx={{ alignItems: "center" }}>
-                      <AddPhotoAlternateIcon
-                        sx={{ fontSize: 40, color: "#3A4D9C" }}
-                      />
-
-                      <Typography
-                        variant="subtitle1"
-                        color="text.secondary"
-                        sx={{ lineHeight: 1.2 }}
-                      >
-                        Arrastra y suelta la imagen
-                      </Typography>
-
-                      <Typography variant="body2" color="text.secondary">
-                        o haz clic para seleccionar
-                      </Typography>
-
-                      <Typography variant="caption" color="text.secondary">
-                        JPG, PNG, GIF, SVG <br /> (Máx. 3MB)
-                      </Typography>
-                    </Stack>
-                  )}
-                </Paper>
-
-                {uploadError && (
-                  <Alert severity="error" sx={{ mt: 2 }} variant="outlined">
-                    {uploadError}
-                  </Alert>
-                )}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 16,
-                  width: "calc(100% / 3)",
-                }}
-              >
-                <TextField
-                  fullWidth
-                  label="Número de Contacto"
-                  name="field_numero_de_contacto"
-                  value={formData.field_numero_de_contacto || ""}
-                  onChange={handleChange}
-                  disabled={isViewMode || loading}
-                  variant="filled"
-                />
-
-                <TextField
-                  fullWidth
-                  label="E-mail de Contacto"
-                  name="field_email_de_contacto"
-                  type="email"
-                  value={formData.field_email_de_contacto || ""}
-                  onChange={handleChange}
-                  disabled={isViewMode || loading}
-                  variant="filled"
-                />
-              </div>
-            </div>
-          </form>
-        </Paper>
-
-        <Paper
-          sx={{
-            p: ".5em 1em 1em 1em",
-            mb: 2,
-            borderRadius: 1,
-          }}
-        >
-          <Typography variant="subtitle1" gutterBottom color="#212121">
-            Activos
-          </Typography>
-          <Divider
-            textAlign="right"
-            sx={{
-              marginBottom: "1em",
-              ...(!isViewMode && {
-                position: "relative",
-                top: "-20px",
-                marginBottom: 0,
-              }),
-            }}
-          >
-            {!isViewMode && (
-              <Button
-                size="small"
-                variant="text"
-                endIcon={<AddIcon />}
-                onClick={agregarActivo}
-                disabled={isViewMode}
-              >
-                Inscribir Activo
-              </Button>
-            )}
-          </Divider>
-
-          {/* === LISTA DE ACTIVOS === */}
-
-          <div style={{ display: "flex", gap: "1em", flexDirection: "column" }}>
-            {(formData.field_activos || []).map((activo, index) => (
-              <Accordion
-                key={activo.id ?? `activo-${index}`}
-                sx={{
-                  width: "100%",
-                  backgroundColor: "#fff",
-                  borderRadius: 1,
-                  boxShadow: "1px 1px 10px -2px #cdcdcd !important",
-                  "&::before": { display: "none" },
-                }}
-              >
-                <AccordionSummary
-                  expandIcon={<ExpandMore />}
-                  sx={{
-                    "&.Mui-focusVisible": {
-                      backgroundColor: "transparent !important",
-                    },
-                  }}
-                >
-                  <InlineEdit
-                    value={activo.activo}
-                    placeholder="Nombre del activo"
-                    displayValue="Nombre del activo"
-                    onChange={(val) => {
-                      const nuevos = [...formData.field_activos];
-                      nuevos[index].activo = val;
-                      setFormData((prev) => ({
-                        ...prev,
-                        field_activos: nuevos,
-                      }));
-                    }}
-                    disabled={isViewMode}
-                    sx={{ fontWeight: 600 }}
-                  />
-                </AccordionSummary>
-
-                <AccordionDetails>
-                  <div
-                    style={{
+                <Grid item xs={12} md={6}>
+                  <Box
+                    sx={{
                       display: "flex",
-                      flexDirection: "row",
-                      gap: "1em",
+                      alignItems: "center",
+                      gap: 2,
+                      height: "100%",
+                      px: 1,
                     }}
                   >
-                    <div style={{ width: "25%" }}>
-                      {/* Upload imagen activo */}
-                      {/* === UPLOADER DE IMAGEN DEL ACTIVO === */}
-                      <Paper
-                        variant="outlined"
-                        onDragEnter={(e) => e.preventDefault()}
-                        onDragLeave={(e) => e.preventDefault()}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          if (e.dataTransfer.files?.[0]) {
-                            uploadActivoImage(e.dataTransfer.files[0], index);
-                          }
-                        }}
-                        onClick={() =>
-                          !isViewMode &&
-                          document
-                            .getElementById(`activoImgInput-${index}`)
-                            .click()
-                        }
-                        sx={{
-                          textAlign: "center",
-                          height: "256px",
-                          border: "2px dashed #3A4D9C",
-                          backgroundColor: activo.imagen_url
-                            ? "#3a4e9c15"
-                            : "#3a4e9c08",
-                          transition: "all 0.3s ease",
-                          cursor: isViewMode ? "default" : "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          position: "relative",
-                        }}
-                      >
-                        {/* INPUT OCULTO */}
-                        <input
-                          id={`activoImgInput-${index}`}
-                          type="file"
-                          accept="image/*"
-                          hidden
-                          onChange={(e) => {
-                            if (e.target.files[0]) {
-                              uploadActivoImage(e.target.files[0], index);
-                            }
-                          }}
-                        />
+                    <Switch
+                      checked={!!formData?.field_enviar_notificaciones}
+                      onChange={(e) =>
+                        setField(
+                          "field_enviar_notificaciones",
+                          e.target.checked
+                        )
+                      }
+                      disabled={isViewMode || loading}
+                    />
+                    <Typography>Enviar notificaciones</Typography>
+                  </Box>
+                </Grid>
+              </div>
 
-                        {/* === SI YA HAY UNA IMAGEN === */}
-                        {uploading ? (
-                          <Stack
-                            style={{
-                              display: "flex",
-                              alignContent: "center",
-                              alignItems: "center",
-                            }}
-                            spacing={2}
-                            sx={{ py: 4 }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                gap: "1em",
-                              }}
-                            >
-                              <CircularProgress size={40} />
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
-                                Subiendo imagen...
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                Por favor espera
-                              </Typography>
-                            </div>
-                          </Stack>
-                        ) : activo.imagen_url ? (
-                          <Box
-                            sx={{
-                              width: "100%",
-                              height: "100%",
-                              position: "relative",
-                            }}
-                          >
-                            <Avatar
-                              src={activo.imagen_url}
-                              variant="rounded"
-                              sx={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                              }}
-                            />
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  width: "calc(100% / 3)",
+                }}
+              >
+                <Grid item xs={12} md={6}>
+                  <ImageDropUploader
+                    value={imagePreview}
+                    disabled={isViewMode || loading}
+                    height={160}
+                    maxPreviewHeight={120}
+                    previewVariant="img"
+                    objectFit="contain"
+                    title="Arrastra y suelta el logo"
+                    subtitle="o haz clic para seleccionar"
+                    caption="JPG, PNG, GIF, SVG (Máx. 3MB)"
+                    onUpload={async (file) => {
+                      setImagePreview(URL.createObjectURL(file));
+                      setImageUploading(true);
 
-                            {!isViewMode && (
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const nuevos = [...formData.field_activos];
-                                  nuevos[index].imagen_url = null;
-                                  nuevos[index].imagen_fid = null;
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    field_activos: nuevos,
-                                  }));
-                                }}
-                                sx={{
-                                  position: "absolute",
-                                  top: -8,
-                                  right: -8,
-                                  bgcolor: "white",
-                                }}
-                              >
-                                <ClearIcon />
-                              </IconButton>
-                            )}
-                          </Box>
-                        ) : (
-                          /* === SI NO HAY IMAGEN === */
-                          <Stack spacing={1} sx={{ alignItems: "center" }}>
-                            <AddPhotoAlternateIcon
-                              sx={{ fontSize: 40, color: "#3A4D9C" }}
-                            />
+                      try {
+                        const form = new FormData();
+                        form.append("file", file);
 
-                            <Typography
-                              variant="subtitle1"
-                              color="text.secondary"
-                              sx={{ lineHeight: 1.2 }}
-                            >
-                              Arrastra y suelta la imagen
-                            </Typography>
+                        const res = await apiClient.post(
+                          `${BASE_URL}/api/clientes/upload-image`,
+                          form,
+                          { headers: { "Content-Type": "multipart/form-data" } }
+                        );
 
-                            <Typography variant="body2" color="text.secondary">
-                              o haz clic para seleccionar
-                            </Typography>
+                        const fid =
+                          res?.data?.data?.fid ?? res?.data?.fid ?? null;
+                        const url =
+                          res?.data?.data?.url ??
+                          res?.data?.data?.relative_url ??
+                          res?.data?.url ??
+                          null;
 
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              JPG, PNG, GIF, SVG <br /> (Máx. 3MB)
-                            </Typography>
-                          </Stack>
-                        )}
-                      </Paper>
-                    </div>
+                        return { fid, url };
+                      } finally {
+                        setImageUploading(false);
+                      }
+                    }}
+                    onUploaded={(result) => {
+                      if (result?.fid)
+                        setField("field_logo_del_cliente", String(result.fid));
+                      if (result?.url) setImagePreview(result.url);
+                    }}
+                    onClear={() => {
+                      setField("field_logo_del_cliente", null);
+                      setImagePreview(null);
+                    }}
+                    onError={(msg) =>
+                      console.error("❌ Error subiendo logo:", msg)
+                    }
+                  />
+                </Grid>
+              </div>
 
-                    <div style={{ width: "75%" }}>
-                      <Paper
-                        sx={{
-                          p: ".5em 1em 1em 1em",
-                          mb: 2,
-                          borderRadius: 1,
-                        }}
-                      >
-                        <Typography
-                          variant="subtitle1"
-                          gutterBottom
-                          color="#212121"
-                        >
-                          Equipos
-                        </Typography>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  width: "calc(100% / 3)",
+                }}
+              >
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Número de contacto"
+                    name="field_numero_de_contacto"
+                    variant="filled"
+                    required
+                    value={formData?.field_numero_de_contacto ?? ""}
+                    onChange={handleTextChange}
+                    disabled={isViewMode || loading}
+                    error={!!errors?.field_numero_de_contacto}
+                    helperText={errors?.field_numero_de_contacto?.message}
+                  />
+                </Grid>
 
-                        <Divider
-                          sx={{ position: "relative", top: "-20px" }}
-                          textAlign="right"
-                        >
-                          {!isViewMode && (
-                            <Button
-                              size="small"
-                              variant="text"
-                              endIcon={<AddIcon />}
-                              onClick={() => agregarEquipo(index)}
-                              disabled={isViewMode}
-                            >
-                              Agregar Equipo
-                            </Button>
-                          )}
-                        </Divider>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "row",
-                            flexWrap: "wrap",
-                            gap: "1em",
-                          }}
-                        >
-                          {activo.equipos.map((eq, eqIndex) => (
-                            <Grid
-                              container
-                              spacing={0.5}
-                              key={eqIndex}
-                              sx={{
-                                width: "calc(96.6726% / 4)",
-                                borderRadius: 1,
-                                p: 2,
-                                backgroundColor: "#e9e9e9",
-                                display: "flex",
-                                flexDirection: "column",
-                              }}
-                            >
-                              <Grid>
-                                <InlineEdit
-                                  value={eq.equipo}
-                                  placeholder="Nombre del equipo"
-                                  displayValue="Nombre del equipo"
-                                  onChange={(val) => {
-                                    const nuevos = [...formData.field_activos];
-                                    nuevos[index].equipos[eqIndex].equipo = val;
-                                    setFormData({
-                                      ...formData,
-                                      field_activos: nuevos,
-                                    });
-                                  }}
-                                  sx={{
-                                    fontWeight: "500",
-                                    fontSize: "1.2rem",
-                                  }}
-                                  disabled={isViewMode}
-                                />
-                              </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Email de contacto"
+                    name="field_email_de_contacto"
+                    variant="filled"
+                    required
+                    value={formData?.field_email_de_contacto ?? ""}
+                    onChange={handleTextChange}
+                    disabled={isViewMode || loading}
+                    error={!!errors?.field_email_de_contacto}
+                    helperText={errors?.field_email_de_contacto?.message}
+                  />
+                </Grid>
+              </div>
+            </div>
+          </Paper>
 
-                              <Grid>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    flexDirection: "row",
-                                    gap: ".5em",
-                                  }}
-                                >
-                                  <span style={{ color: "#00000085" }}>
-                                    Modelo:
-                                  </span>
-                                  <InlineEdit
-                                    value={eq.modelo}
-                                    placeholder="Indique modelo"
-                                    displayValue="Indique modelo"
-                                    onChange={(val) => {
-                                      const nuevos = [
-                                        ...formData.field_activos,
-                                      ];
-                                      nuevos[index].equipos[eqIndex].modelo =
-                                        val;
-                                      setFormData({
-                                        ...formData,
-                                        field_modelo: nuevos,
-                                      });
-                                    }}
-                                    disabled={isViewMode}
-                                  />
-                                </div>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    flexDirection: "row",
-                                    gap: ".5em",
-                                  }}
-                                >
-                                  <span style={{ color: "#00000085" }}>
-                                    Fabricante:
-                                  </span>
+          {/* =========================
+              ACTIVOS
+              ========================== */}
+          <Paper elevation={0} sx={{ p: 2 }}>
+            <Typography variant="subtitle1">Activos</Typography>
+            <Divider
+              textAlign="right"
+              sx={{
+                marginBottom: "1em",
+                ...(!isViewMode && {
+                  position: "relative",
+                  top: "-20px",
+                  marginBottom: 0,
+                }),
+              }}
+            >
+              {!isViewMode && (
+                <Button
+                  size="small"
+                  variant="text"
+                  endIcon={<AddIcon />}
+                  onClick={addActivo}
+                  disabled={isViewMode}
+                >
+                  Inscribir Activo
+                </Button>
+              )}
+            </Divider>
 
-                                  <InlineEdit
-                                    value={eq.fabricante}
-                                    placeholder="Indique fabricante"
-                                    displayValue="Indique fabricante"
-                                    onChange={(val) => {
-                                      const nuevos = [
-                                        ...formData.field_activos,
-                                      ];
-
-                                      nuevos[index].equipos[
-                                        eqIndex
-                                      ].fabricante = val;
-                                      setFormData({
-                                        ...formData,
-                                        field_fabricante: nuevos,
-                                      });
-                                    }}
-                                    disabled={isViewMode}
-                                  />
-                                </div>
-                              </Grid>
-
-                              <Grid>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    flexDirection: "row",
-                                    justifyContent: "space-between",
-                                  }}
-                                >
-                                  <Button
-                                    size="small"
-                                    variant="text"
-                                    color="success"
-                                    onClick={() => {
-                                      if (!formData.cliente_id) {
-                                        console.warn("Cliente sin ID aún");
-                                        return;
-                                      }
-
-                                      const params = new URLSearchParams({
-                                        cliente: formData.cliente_id,
-                                        activo: activo.activo_id,
-                                        equipo: eq.id,
-                                      });
-
-                                      navigate(
-                                        `/componentes?${params.toString()}`
-                                      );
-                                    }}
-                                  >
-                                    Componentes
-                                  </Button>
-
-                                  {!isViewMode && (
-                                    <Tooltip arrow title="Eliminar Equipo">
-                                      <IconButton
-                                        size="small"
-                                        color="error"
-                                        onClick={() =>
-                                          eliminarEquipo(index, eqIndex)
-                                        }
-                                      >
-                                        <DeleteIcon />
-                                      </IconButton>
-                                    </Tooltip>
-                                  )}
-                                </div>
-                              </Grid>
-                            </Grid>
-                          ))}
-                        </div>
-                      </Paper>
-                      <div style={{ textAlign: "right" }}>
-                        {!isViewMode && (
-                          <Tooltip arrow title="Eliminar Activo">
-                            <IconButton
-                              color="error"
-                              onClick={() => eliminarActivo(index)}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </AccordionDetails>
-              </Accordion>
-            ))}
-          </div>
-        </Paper>
+            <Stack spacing={1}>
+              {activos.map((activoField, index) => (
+                <ActivoAccordion
+                  key={activoField.id}
+                  control={control}
+                  watch={watch}
+                  setValue={setValue}
+                  isViewMode={isViewMode}
+                  index={index}
+                  activoField={activoField}
+                  eliminarActivo={eliminarActivo}
+                  navigate={navigate}
+                  location={location}
+                />
+              ))}
+            </Stack>
+          </Paper>
+        </form>
       </div>
     </div>
   );

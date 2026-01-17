@@ -22,15 +22,19 @@ export default function BreadcrumbNav() {
     componentes: "Componentes",
     permisosyperfiles: "Permisos y perfiles",
     vercomponente: "Ver componente",
+
     clasificacion_lubricantes: "Clases de lubricantes",
     tipos_lubricantes: "Tipos de lubricantes",
+    fabricantes_lubricantes: "Fabricante de lubricantes",
+    prestadores_servicios: "Prestadores de servicios",
   };
 
   // Capitaliza nombres no mapeados
   const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
   return (
-    <Box className="breadcrumb-nav"
+    <Box
+      className="breadcrumb-nav"
       sx={{
         mb: 2,
         display: "flex",
@@ -63,7 +67,7 @@ export default function BreadcrumbNav() {
             fontSize="small"
             color={location.pathname === "/home" ? "primary" : "action"}
           />
-            Inicio
+          Inicio
         </Link>
 
         {/* Resto de la ruta */}

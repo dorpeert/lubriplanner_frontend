@@ -1,0 +1,193 @@
+<?php
+
+use Drupal\node\Entity\Node;
+
+/**
+ * Implementa hook_cron().
+ */
+function lubriplanner_servicios_api_v2_cron()
+{
+    // Evitar correr si no hay bootstrap completo o algo raro.
+    try {
+        _lubriplanner_servicios_api_v2_run_auto_notifications();
+    } catch (\Throwable $e) {
+        \Drupal::logger('lubriplanner_servicios_api_v2')->error('Cron notify error: @m', ['@m' => $e->getMessage()]);
+    }
+}
+
+/**
+ * Revisa servicios "agendado" y notifica al cumplirse el 80% del tiempo.
+ */
+function _lubriplanner_servicios_api_v2_run_auto_notifications(): void
+{
+    $now = time();
+
+    // Servicios candidatos: agendado, con fechas, sin fecha_notificado.
+    $query = \Drupal::entityQuery('node')
+        ->accessCheck(FALSE)
+        ->condition('type', 'servicios')
+        ->condition('status', 1)
+        ->condition('field_estado', 'agendado')
+        ->exists('field_fecha_agendado')
+        ->exists('field_fecha_proximo_servicio')
+        ->notExists('field_fecha_notificado')
+        ->range(0, 50); // ✅ por cron: limita para no alargar
+
+    $nids = $query->execute();
+    if (empty($nids)) {
+        return;
+    }
+
+    $nodes = Node::loadMultiple($nids);
+
+    foreach ($nodes as $serv) {
+        $fecha_agendado = $serv->get('field_fecha_agendado')->value ?? null;
+        $fecha_proximo  = $serv->get('field_fecha_proximo_servicio')->value ?? null;
+
+        if (!$fecha_agendado || !$fecha_proximo) {
+            continue;
+        }
+
+        $ts_ag = strtotime($fecha_agendado);
+        $ts_px = strtotime($fecha_proximo);
+
+        if (!$ts_ag || !$ts_px) {
+            continue;
+        }
+
+        $total = $ts_px - $ts_ag;
+
+        // Si el intervalo es inválido (0 o negativo), podemos notificar inmediatamente o saltar.
+        if ($total <= 0) {
+            _lubriplanner_servicios_api_v2_notify_and_update($serv);
+            continue;
+        }
+
+        $threshold = $ts_ag + (int) round($total * 0.8);
+
+        if ($now >= $threshold) {
+            _lubriplanner_servicios_api_v2_notify_and_update($serv);
+        }
+    }
+}
+
+/**
+ * Envía email y cambia estado -> notificado.
+ */
+function _lubriplanner_servicios_api_v2_notify_and_update(Node $serv): void
+{
+    // (Opcional) si quieres respetar un flag del servicio:
+    if ($serv->hasField('field_notificar_al_cliente') && !$serv->get('field_notificar_al_cliente')->isEmpty()) {
+        $flag = (bool) $serv->get('field_notificar_al_cliente')->value;
+        if (!$flag) {
+            return;
+        }
+    }
+
+    // Cargar cliente asociado
+    $cliente_id = $serv->hasField('field_cliente_serv') ? (int) ($serv->get('field_cliente_serv')->target_id ?? 0) : 0;
+    $cliente = $cliente_id ? Node::load($cliente_id) : null;
+
+    // Intentar obtener email del cliente (ajusta nombres si tu campo difiere)
+    $email = null;
+    if ($cliente) {
+        $candidates = ['field_email_de_contacto', 'field_email', 'field_correo', 'email'];
+        foreach ($candidates as $f) {
+            if ($cliente->hasField($f) && !$cliente->get($f)->isEmpty()) {
+                $email = $cliente->get($f)->value;
+                if (!empty($email)) break;
+            }
+        }
+
+        // Si existe switch "enviar notificaciones" en cliente, respétalo
+        if ($cliente->hasField('field_enviar_notificaciones') && !$cliente->get('field_enviar_notificaciones')->isEmpty()) {
+            $allow = (bool) $cliente->get('field_enviar_notificaciones')->value;
+            if (!$allow) {
+                return;
+            }
+        }
+    }
+
+    if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        \Drupal::logger('lubriplanner_servicios_api_v2')->warning(
+            'Servicio @id sin email válido de cliente (cliente: @c).',
+            ['@id' => $serv->id(), '@c' => $cliente_id ?: 'N/A']
+        );
+        return;
+    }
+
+    // Construir datos útiles
+    $tipo = $serv->hasField('field_tipo_de_servicio') ? ($serv->get('field_tipo_de_servicio')->value ?? '') : '';
+    $activo = $serv->hasField('field_activo_serv') ? ($serv->get('field_activo_serv')->value ?? '') : '';
+    $equipo = $serv->hasField('field_equipo_serv') ? ($serv->get('field_equipo_serv')->value ?? '') : '';
+    $num = $serv->label();
+    $fecha_prox = $serv->hasField('field_fecha_proximo_servicio') ? ($serv->get('field_fecha_proximo_servicio')->value ?? '') : '';
+
+    $params = [
+        'subject' => "Notificación de servicio #$num - $tipo",
+        'message' =>
+        "Hola,\n\n" .
+            "Te informamos que se aproxima un servicio programado.\n\n" .
+            "Servicio: #$num\n" .
+            "Tipo: $tipo\n" .
+            "Activo: $activo\n" .
+            "Equipo: $equipo\n" .
+            "Fecha estimada del servicio: $fecha_prox\n\n" .
+            "Gracias.",
+    ];
+
+    $langcode = \Drupal::languageManager()->getDefaultLanguage()->getId();
+    $from = \Drupal::config('system.site')->get('mail') ?: 'no-reply@localhost';
+
+    $result = \Drupal::service('plugin.manager.mail')->mail(
+        'lubriplanner_servicios_api_v2',
+        'servicio_notificacion',
+        $email,
+        $langcode,
+        $params,
+        $from,
+        TRUE
+    );
+
+    if (!empty($result['result'])) {
+        $hoy = date('Y-m-d');
+        if ($serv->hasField('field_fecha_notificado')) {
+            $serv->set('field_fecha_notificado', $hoy);
+        }
+        if ($serv->hasField('field_estado')) {
+            $serv->set('field_estado', 'notificado');
+        }
+        $serv->save();
+
+        \Drupal::logger('lubriplanner_servicios_api_v2')->info(
+            'Servicio @id notificado automáticamente a @email.',
+            ['@id' => $serv->id(), '@email' => $email]
+        );
+    } else {
+        \Drupal::logger('lubriplanner_servicios_api_v2')->error(
+            'Fallo enviando email de servicio @id a @email.',
+            ['@id' => $serv->id(), '@email' => $email]
+        );
+    }
+}
+
+/**
+ * Implementa hook_mail().
+ */
+function lubriplanner_servicios_api_v2_mail($key, &$message, $params)
+{
+    if ($key === 'servicio_notificacion') {
+        $message['subject'] = $params['subject'] ?? 'Notificación de servicio';
+        $message['body'][] = $params['message'] ?? '';
+    }
+
+    if ($key === 'servicio_completado') {
+        $message['subject'] = $params['subject'] ?? 'Servicio completado';
+        $message['body'][] = $params['message'] ?? '';
+    }
+
+    if ($key === 'servicio_finalizado') {
+        $message['subject'] = $params['subject'] ?? 'Servicio finalizado';
+        $message['body'][] = $params['message'] ?? '';
+    }
+}
